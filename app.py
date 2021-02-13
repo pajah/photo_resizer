@@ -1,12 +1,15 @@
 import tkinter as tk
 
 from tkinter.simpledialog import askfloat
-from tkinter.filedialog import askopenfile, asksaveasfile
+from tkinter.filedialog import askopenfile, asksaveasfile, askopenfiles
 
 from tkinter.ttk import Separator
 from PIL import Image, ImageTk
 
 import io
+
+CANVAS_SIZE = (600, 300)
+PREVIEW_SIZE = (600, 300)
 
 class PanResizer(object):
     def __init__(self):
@@ -23,51 +26,101 @@ class PanResizer(object):
         self.cand_size_mb = None
         self.cand_percentage = None
         self.preview_canvas = None
+        self.result_size = None
+        self.bulk_mode = None
+        self.bulk_files = None
 
 
     def open_file(self):
-        file = tk.filedialog.askopenfile(title="Open file")
+        file = tk.filedialog.askopenfile(title="Choose a file",
+                                         filetype=[("JPG file", "*.jpg"),
+                                                   ("JPEG file", "*.jpeg")]
+                                         )
         if file:
             img = Image.open(file.name)
             self.initial_file = file
             self.initial_img = ImageTk.PhotoImage(img)
             self.icc_profile = img.info.get('icc_profile')
 
-            # with open(file.name, 'r') as f:
-            #     im = Image.open(f)
-            # print(im)
-            #     # im = Image.open(readed)
-            #     print(readed)
-
-            print('Open file size: ', img.size)
-
             self.initial_height = img.height
             self.initial_width = img.width
-            # self.initial_file_mb = len(img.fp.read()) / 1048576
 
-            img.thumbnail((600, 300), Image.LANCZOS)
-            self.img_prevew_size = img.size
-            self.img_preview = ImageTk.PhotoImage(img)
+            print('Open file size: ', img.size)
+            self.update_info_box('File "%s" opened.' % self.initial_file.name)
 
-            self.log.append('File opened')
+            self.make_preview(img)
+
+        else:
+            return
 
 
-        self.add_info_box()
-        # self.open_image()
-        self.open_image2()
+    def open_bulk_files(self):
+        files = tk.filedialog.askopenfiles(title="Choose a file",
+                                           filetype=[("JPG file", "*.jpg"),
+                                                     ("JPEG file", "*.jpeg")]
+                                           )
+        self.bulk_mode = True
+
+        self.initial_file = None
+        self.initial_img = None
+        self.initial_file_path = None
+
+        if files:
+            self.bulk_files = files
+            print(self.bulk_files)
+        #     for file in files:
+        #
+        #         img = Image.open(file.name)
+        #         self.initial_file = file
+        #         self.initial_img = ImageTk.PhotoImage(img)
+        #         self.icc_profile = img.info.get('icc_profile')
+        #
+        #         print('Open file size: ', img.size)
+        #
+        #         self.initial_height = img.height
+        #         self.initial_width = img.width
+        #
+        #         img.thumbnail(PREVIEW_SIZE, Image.LANCZOS)
+        #         self.img_prevew_size = img.size
+        #         self.img_preview = ImageTk.PhotoImage(img)
+        #
+        #         self.log.append('File "%s" opened.' % self.initial_file.name)
+
+
+            # self.update_info_box()
+            # self.open_image()
+            self.make_preview()
+            # self.calculate_initial_data()
+
+
+    def make_preview(self, img):
+
+        img.thumbnail(PREVIEW_SIZE, Image.LANCZOS)
+        self.img_prevew_size = img.size
+        self.img_preview = ImageTk.PhotoImage(img)
+
+        try:
+            self.place_preview()
+        except Exception as e:
+            self.update_info_box(e)
+
         self.calculate_initial_data()
 
+
     def create_canvas(self):
-        self.canvas = tk.Canvas(self.root, height=600, width=300)
-        self.canvas.grid(column=2, row=4)
+
+        frame = tk.Frame(self.root, padx=0, pady=10, width=200)
+
+        self.canvas = tk.Canvas(frame, height=CANVAS_SIZE[0], width=CANVAS_SIZE[1],
+                                )
+        self.canvas.grid(column=2, row=5)
 
 
     def add_logo(self):
         logo = Image.open('logo.jpg')
         logo = ImageTk.PhotoImage(logo)
-        logo_label = tk.Label(self.root, image=logo, height=300)
+        logo_label = tk.Label(self.root, image=logo, height=300, anchor='center')
         logo_label.image = logo
-        # print(logo_label)
         logo_label.grid(column=1, row=0)
 
 
@@ -75,6 +128,8 @@ class PanResizer(object):
     def add_instructions(self):
         instructions = tk.Label(self.root, text="Select JPG to resize", font="Raleway")
         instructions.grid(column=0, row=1)
+        instructions2 = tk.Label(self.root, text="Select several JPGs to resize", font="Raleway")
+        instructions2.grid(column=0, row=3)
 
     def add_open_button(self):
 
@@ -84,132 +139,79 @@ class PanResizer(object):
                                     command=lambda: self.open_file())
         self.browse_text.set("Browse...")
         lbl_frame = Separator(master=self.root, orient='horizontal')
-        lbl_frame.grid(column=0, row=2, sticky="we", columnspan=3, ipadx=300, pady=15)
+        lbl_frame.grid(column=0, row=2, sticky="we", columnspan=3, ipadx=300, pady=5)
         self.browse_btn.grid(column=1, row=1)
 
+    def add_bulk_open_button(self):
+
+        self.bulk_browse_text = tk.StringVar()
+        self.bulk_browse_btn = tk.Button(self.root, textvariable=self.bulk_browse_text,
+                                         font="Raleway",
+                                         command=lambda: self.open_bulk_files(),
+                                         anchor='center')
+        self.bulk_browse_text.set("Browse several...")
+        lbl_frame2 = Separator(master=self.root, orient='horizontal')
+        lbl_frame2.grid(column=0, row=3, sticky="n", columnspan=3)
+        self.bulk_browse_btn.grid(column=1, row=3, pady=5, sticky='n')
 
     def add_info_box(self):
-        self.info_box = tk.Text(self.root, height=20, width=50)
-        for _ in self.log:
-            self.info_box.insert(1.0, _)
-            self.info_box.insert(1.0, '\n')
-            self.info_box.insert(1.0, '\n')
+        self.info_box = tk.Text(self.root, height=20, width=65, padx=20, font=("Raleway", 10))
+        self.info_box.grid(columnspan=2, column=0, row=5)
 
-        self.info_box.grid(columnspan=2, column=0, row=4)
+    def update_info_box(self, message):
+        self.info_box.insert(1.0, '\n\n%s' % message)
 
-    def open_image(self):
+
+    def place_preview(self):
         if self.img_preview:
-            print('!')
             preview = self.img_preview
-            self.preview_label = tk.Label(self.root, image=preview)
-            self.preview_label.image = preview
-            # self.preview_label
-            # print(logo_label)
-            self.preview_label.grid(column=0, row=2, columnspan=3)
-
-    def open_image2(self):
-        if self.img_preview:
-            print('!')
-            preview = self.img_preview
-            # self.preview_canvas = tk.Canvas(self.root, width=600, height=300)
             self.preview_canvas = tk.Canvas(self.root, width=600, height=200,
                                             borderwidth=0, highlightthickness=0)
             self.preview_canvas.create_image(0, 0, image=preview, anchor='nw')
-            # self.preview_label = tk.Label(self.root, image=preview)
-            # self.preview_label.image = preview
-            # self.preview_label
-            # print(logo_label)
-            self.preview_canvas.grid(column=0, row=3, columnspan=3)
-
+            self.preview_canvas.grid(column=0, row=4, columnspan=3)
 
 
     def calculate_initial_data(self):
-        # pass
+
         if self.initial_img:
-            self.log.append('Height: %s px' % self.initial_height)
-            self.log.append('Width : %s px' % self.initial_width)
-            self.add_info_box()
+            self.update_info_box('Initial height: %s px' % self.initial_height)
+            self.update_info_box('Initial width : %s px' % self.initial_width)
 
             self.create_candidate()
-
 
     def create_candidate(self):
         if self.initial_file:
             im = Image.open(self.initial_file.name)
             size_mb = len(im.fp.read()) / 1048576
-            # print(size_mb)
             self.initial_file_mb = size_mb
-            self.log.append('Initial file size: %s Mb' % str(size_mb)[:4])
-            self.add_info_box()
+
+            self.update_info_box('Initial file size: %s Mb' % str(size_mb)[:4])
 
             self.ask_new_size()
 
     def ask_new_size(self):
-        needed_size_mb = askfloat("Set desirable file size in MBytes",
-                                  "Input needed MBytes amount: \n",
-                                  parent=self.root,
-                                  initialvalue="49.9")
-        self.needed_mb = needed_size_mb
-        self.log.append('Desirable size of input file: %s' % self.needed_mb)
+        needed_size_mb = askfloat(
+            "Set desirable file size in MBytes",
+            "Input needed MBytes amount for file\n %s" % (self.initial_file.name),
+            parent=self.root,
+            initialvalue="49.9")
+        if needed_size_mb:
+            self.needed_mb = needed_size_mb
+            self.update_info_box('Desirable size of input file: %s Mb' % self.needed_mb)
+        else:
+            return
         if self.needed_mb >= self.initial_file_mb:
-            self.log.append('Processing is not needed because the initial file larger than desirable one.')
-        self.add_info_box()
+            self.update_info_box('Processing is not needed because the initial file larger than desirable one.')
         self.process()
 
     def process(self):
+        self.cand_save_complete = False
         if self.initial_img and self.needed_mb:
             print('Starting process')
 
             if self.needed_mb > self.initial_file_mb:
-                self.log.append('Cant enlarge')
-                self.add_info_box()
+                self.update_info_box('Cant enlarge from %s Mb to %s Mb' % (str(self.initial_file_mb)[:4], self.needed_mb))
                 return
-
-            # value = int(self.needed_mb)
-            #
-            # rng = range(10, 100)
-            # low = rng[0]
-            # high = rng[-1]
-            # mid = len(rng) // 2
-            #
-            # img = Image.open(self.initial_file.name)
-            #
-            # i = 0
-            # while low < high:
-            #     i += 1
-            #     img = Image.open(self.initial_file.name)
-            #     new_im = img.resize((int(img.width * mid * 0.01), int(img.height * mid * 0.01)), Image.ANTIALIAS)
-            #     new_im.save("cand.jpg", format='JPEG', quality=100, subsampling=0, icc_profile=self.icc_profile)
-            #     img.close()
-            #
-            #     cand_size_mb = 0
-            #     cand = Image.open("cand.jpg")
-            #     print(cand.format)
-            #     cand_size_mb = len(cand.fp.read()) / 1048576
-            #     cand.close()
-            #
-            #     if cand_size_mb < value:
-            #         low = mid + 1
-            #     else:
-            #         high = mid - 1
-            #
-            #     mid = (low + high) // 2
-            #
-            #     self.log.append('Attempt %s\n'
-            #                     'Trying %s percent of initial file:\n'
-            #                     'MB file result: %s\n' % (str(i), str(mid), str(cand_size_mb)[:4]))
-            #     self.log.append('---' * 20)
-            #
-            #     self.cand_percentage = mid
-            #     self.cand_size_mb = cand_size_mb
-            #
-            #     self.candidate_img = cand
-            #     self.add_info_box()
-            #
-            #     if self.cand_percentage and self.cand_size_mb and self.candidate_img:
-            #         self.save_process()
-            # print('Last mid: %s' % mid)
-            # print('Last size: %s' % str(cand_size_mb))
 
             img = img_orig = Image.open(self.initial_file.name)
 
@@ -218,30 +220,33 @@ class PanResizer(object):
             target_size = self.needed_mb * 1024 * 1024
 
             att_counter = 0
-            while True:
-
+            while not self.cand_save_complete:
                 att_counter += 1
                 with io.BytesIO() as buffer:
                     img.save(buffer, format="JPEG", quality=100, subsampling=0, icc_profile=self.icc_profile)
                     data = buffer.getvalue()
 
-                filesize = len(data)
-                size_deviation = filesize / target_size
+                self.filesize = len(data)
+                size_deviation = self.filesize / target_size
 
-                self.log.append('Attempt # %s\nSize: %s Mbytes, now file is x %s larger than needed' %
-                                (att_counter, str(filesize/1048576)[:4], str(size_deviation)[:5]))
-                self.add_info_box()
-                # print("size: {}; factor: {:.3f}".format(filesize, size_deviation))
+                # self.log.append('Attempt # %s\nSize: %s Mbytes, it is x %s of needed size.' %
+                #                 (att_counter, str(self.filesize/1048576)[:4], str(size_deviation)[:7]))
+                self.update_info_box('Attempt # %s\nSize: %s Mbytes, it is x %s of needed size.' %
+                                (att_counter, str(self.filesize/1048576)[:4], str(size_deviation)[:7]))
 
                 if size_deviation <= (100 + tolerance) / 100:
                     # # filesize fits
-                    # with open(img_target_filename, "wb") as f:
-                    #     f.write(data)
-
                     self.candidate_img = img
-                    self.save_io()
-                    self.add_example_frame(size_deviation)
-                    break
+                    self.result_size = self.candidate_img.size
+                    self.add_example_frame()
+                    self.update_info_box(
+                        'Image processed successfully! \n\n'
+                        'You may see proportional '
+                        'size of new image marked by red frame. \nClick "Save..." now.\n\n'
+                        'New height: %s px \n'
+                        'New wight : %s px' % (self.candidate_img.size[0], self.candidate_img.size[1]))
+                    self.save_process()
+                    self.cand_save_complete = True
                 else:
                     # filesize not good enough => adapt width and height
                     # use sqrt of deviation since applied both in width and height
@@ -253,83 +258,60 @@ class PanResizer(object):
                     img = img_orig.resize((int(new_width), int(new_height)))
 
 
-    def add_example_frame(self, size_deviation):
+    def add_example_frame(self):
 
-        # bbox = self.canvas.bbox("")
-        # self.
         try:
-            # print(size_deviation)
-            # prevew_x = self.preview_canvas.winfo_rootx()
-            # print(self.initial_width)
-            # prevew_y = self.preview_canvas.winfo_rooty()
-            # print(self.initial_width)
-            # # canvas_y = self.canvas.canvasy()
-            #
-            # x_factor = self.initial_width / 600
-            # y_factor = self.initial_height / 200
-            #
-
-            # print(x_factor, y_factor)
-
-            # rec_x = self.initial_width / x_factor * size_deviation
-            # rec_y = self.initial_height / x_factor            # rec_y = (200 / y_factor)
-            #
-            # print(rec_x, rec_y)
-
             print('Result size: ', self.result_size)
-            # print('Preview img size: ', self.img_preview.size())
 
             crop_factor_x = self.result_size[0] / self.initial_width
             crop_factor_y = self.result_size[1] / self.initial_height
 
             print(crop_factor_x)
-
             rec_x, rec_y = self.img_prevew_size[0] * crop_factor_x, self.img_prevew_size[1] * crop_factor_y
             print('Rec: ', rec_x, rec_y)
 
-            self.preview_canvas.create_rectangle(0, 0,
+            self.preview_canvas.create_rectangle(1, 1,
                                                  rec_x, rec_y,
                                                  outline='red',
                                                  width=2)
             self.preview_canvas.grid()
         except Exception as e:
-            print(e)
-        # self.canvas.grid()
+            # self.log.append(e)
+            self.update_info_box(e)
+
 
     def save_process(self):
 
-        def save_file(file):
-            file = asksaveasfile(defaultextension='.jpg')
+        def save_file(self):
+            file = asksaveasfile(
+                defaultextension='*.jpg',
+                filetypes=[("JPG file", "*.jpg"), ("JPEG file", "*.jpeg")],
+                initialfile=self.initial_file.name.replace(
+                    '.jpg', '_resized_to_%s_Mb.jpg' % str(self.filesize/1048576).replace('.', ',')[:4]))
             if file:
                 self.candidate_img.save(file, quality=100, subsampling=0, icc_profile=self.icc_profile)
-                file.close()
+            else:
+                return
 
         self.save_text = tk.StringVar()
         self.save_btn = tk.Button(self.root, textvariable=self.save_text,
                                   font="Raleway",
-                                  command=lambda: save_file(self.candidate_img))
+                                  command=lambda: save_file(self))
         self.save_text.set("Save...")
         self.save_btn.grid(column=2, row=4)
 
-    def save_io(self):
-        file = asksaveasfile()
-        if file:
-            self.candidate_img.save(file, quality=100, subsampling=0, icc_profile=self.icc_profile)
-            self.result_size = self.candidate_img.size
-            # contents = output.getvalue()
 
     def app(self):
         self.root = tk.Tk()
-        self.root.title('PanResizer')
+        self.root.title('PanResizer by @world_of_distortion')
 
         self.create_canvas()
         self.add_instructions()
         self.add_logo()
         self.add_open_button()
+        self.add_bulk_open_button()
 
-        # self.open_image()
         self.add_info_box()
-
         self.calculate_initial_data()
 
         self.root.mainloop()
