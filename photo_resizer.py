@@ -19,4 +19,6 @@ browse_btn = tk.Button(root, textvariable=browse_text, font="Raleway")
 browse_text.set("Browse...")
 browse_btn.grid(column=1, row=0)
 
+# file = tk.Variable()
+
 root.mainloop()

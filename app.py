@@ -1,11 +1,11 @@
 import tkinter as tk
+from tkinter.filedialog import askopenfile, asksaveasfile, askopenfiles, askdirectory
 
 from copy import deepcopy
 
 from time import sleep
 
 from tkinter.simpledialog import askfloat
-from tkinter.filedialog import askopenfile, asksaveasfile, askopenfiles, askdirectory
 
 from tkinter.ttk import Separator
 from PIL import Image, ImageTk
@@ -20,24 +20,44 @@ PREVIEW_SIZE = (600, 300)
 
 Image.MAX_IMAGE_PIXELS = None
 
+
+
+
 class PanResizer(object):
     def __init__(self):
+
+        self.main_frame = None
+        self.canvas = None
+        self.settings_ver_sep = None
+
+        self.logo_label = None
+        self.info_box = None
+
         self.initial_file_path = None
         self.initial_file = None
         self.initial_img = None
-        self.logo_label = None
-        self.img_preview = None
         self.initial_file_mb = None
-        # self.log = []
+        self.initial_height = None
+        self.initial_width = None
+
+        self.img_preview = None
+
         self.needed_mb = None
         self.icc_profile = None
         self.candidate_img = None
+
+        self.touch_center = None
+        self.rect = None
+        
         # self.cand_size_mb = None
         # self.cand_percentage = None
         self.preview_canvas = None
         self.result_size = None
         self.bulk_mode = None
         self.bulk_files = None
+
+        self.crop_factor_x = None
+        self.crop_factor_y = None
         self.is_resize_complete = None
         # self.is_cand_save_complete = None
         self.filesize = None
@@ -46,25 +66,64 @@ class PanResizer(object):
         self.bulk_count_now = None
         self.is_next_button_pressed = False
 
+        self.insta_preview_img = None
+        self.insta_start_cut_preview_position_x = None
         self.insta_start_cut_original_position_x = None
+        self.insta_parts_amount = None
+        self.insta_ver_seps = []
+        self.insta_start_cutting_btn = None
+        self.insta_is_start_btn_visible = True
+
+        self.is_settings_opened = None
+        self.master_column_number = 2
+        self.master_row_nubmer = 11
 
 
     def create_canvas(self):
-
-        frame = tk.Frame(self.root, padx=0, pady=10, width=CANVAS_SIZE[0])
-
-        self.canvas = tk.Canvas(frame, height=CANVAS_SIZE[0], width=CANVAS_SIZE[1])
-        self.canvas.grid(column=2, row=11)
+        self.main_frame = tk.Frame(self.root, padx=0, width=CANVAS_SIZE[0])
+        self.canvas = tk.Canvas(self.main_frame, height=CANVAS_SIZE[0], width=CANVAS_SIZE[1],
+                                borderwidth=0)
+        self.canvas.grid(column=self.master_column_number, row=self.master_row_nubmer,
+                         padx=0)
 
     def add_settings_button(self):
 
-        self.settings_btn_text = tk.StringVar()
-        self.settings_btn = tk.Button(self.root, textvariable=self.settings_btn_text,
-                                    font="Raleway",
-                                    command=lambda: SettingsWindow(self.root))
-        self.settings_btn_text.set("Settings")
-        self.settings_btn.grid(column=0, row=0)
+        settings_btn_text = tk.StringVar()
+        settings_btn = tk.Button(self.root, textvariable=settings_btn_text,
+                                 font="Raleway",
+                                 command=lambda: self.toggle_settings())
+        settings_btn_text.set("Settings")
+        settings_btn.grid(column=0, row=0)
 
+    def toggle_settings(self):
+        if self.is_settings_opened:
+            # self.settings_ver_sep.destroy()
+            self.settings_canvas.destroy()
+            self.master_column_number -= 2
+            self.is_settings_opened = False
+        else:
+            self.master_column_number += 2
+            self.is_settings_opened = True
+
+            self.settings_canvas = tk.LabelFrame(self.root,
+                                             width=200, height=CANVAS_SIZE[0],
+                                             borderwidth=2,
+                                                 padx=2
+                                             )
+            self.settings_canvas.grid(column=self.master_column_number-2,
+                                      row=0,
+                                      rowspan=12,
+                                      sticky='sn')
+
+            self.settings_ver_sep = Separator(master=self.settings_canvas,
+                                              orient='vertical',
+                                              )
+            # self.settings_ver_sep.grid(column=2, row=2, rowspan=5, sticky='w', padx=5)
+
+
+
+            self.test_lbl = tk.Label(self.settings_canvas, text='SSSS', padx=40)
+            self.test_lbl.grid(column=self.master_column_number, row=4, pady=100)
 
     def add_logo(self):
         logo = Image.open('logo.jpg')
@@ -73,76 +132,78 @@ class PanResizer(object):
         logo_label.image = logo
         logo_label.grid(column=1, row=0)
 
-
     def add_instructions(self):
-        instructions = tk.Label(self.root, text="Select JPG to resize", font="Raleway")
-        instructions.grid(column=0, row=1)
-        instructions2 = tk.Label(self.root, text="Select several JPGs to resize", font="Raleway")
-        instructions2.grid(column=0, row=3)
-        instructions3 = tk.Label(self.root, text="Select folder to process all JPGs", font="Raleway")
-        instructions3.grid(column=0, row=5)
-        instructions4 = tk.Label(self.root, text="Select JPG for instagram cutting", font="Raleway")
-        instructions4.grid(column=0, row=8)
+        open_jpg_instr = tk.Label(self.root, text="Select JPG to resize", font="Raleway")
+        open_jpg_instr.grid(column=0, row=1)
+        open_jpgs_instr = tk.Label(self.root, text="Select several JPGs to resize", font="Raleway")
+        open_jpgs_instr.grid(column=0, row=3)
+        open_fldr_instr = tk.Label(self.root, text="Select folder to process all JPGs", font="Raleway")
+        open_fldr_instr.grid(column=0, row=5)
+        open_insta_cut_instr = tk.Label(self.root, text="Select JPG for instagram cutting", font="Raleway")
+        open_insta_cut_instr.grid(column=0, row=8)
 
     def add_open_button(self):
-
-        self.browse_text = tk.StringVar()
-        self.browse_btn = tk.Button(self.root, textvariable=self.browse_text,
-                                    font="Raleway",
-                                    command=lambda: self.open_file())
-        self.browse_text.set("Browse...")
-        lbl_frame = Separator(master=self.root, orient='horizontal')
-        # lbl_frame.grid(column=0, row=2, sticky="we", columnspan=3, ipadx=300, pady=5)
-        lbl_frame.grid(column=0, row=2, sticky="we", columnspan=3, pady=5)
-        self.browse_btn.grid(column=1, row=1)
+        browse_text = tk.StringVar()
+        browse_btn = tk.Button(self.root, textvariable=browse_text,
+                               font="Raleway",
+                               command=lambda: self.open_file())
+        browse_text.set("Browse...")
+        sep = Separator(master=self.root, orient='horizontal')
+        sep.grid(column=0, row=2, sticky="we", columnspan=2, pady=5)
+        browse_btn.grid(column=1, row=1)
 
     def add_bulk_open_button(self):
-
-        self.bulk_browse_text = tk.StringVar()
-        self.bulk_browse_btn = tk.Button(self.root, textvariable=self.bulk_browse_text,
-                                         font="Raleway",
-                                         command=lambda: self.open_bulk_files(),
-                                         anchor='center')
-        self.bulk_browse_text.set("Browse several...")
-        lbl_frame2 = Separator(master=self.root, orient='horizontal')
-        lbl_frame2.grid(column=0, row=4, sticky="we", columnspan=3)
-        self.bulk_browse_btn.grid(column=1, row=3, pady=5, sticky='n')
+        bulk_browse_text = tk.StringVar()
+        bulk_browse_btn = tk.Button(self.root, textvariable=bulk_browse_text,
+                                    font="Raleway",
+                                    command=lambda: self.open_bulk_files(),
+                                    anchor='center')
+        bulk_browse_text.set("Browse several...")
+        sep = Separator(master=self.root, orient='horizontal')
+        sep.grid(column=0, row=4, sticky="we", columnspan=2)
+        bulk_browse_btn.grid(column=1, row=3, pady=5, sticky='n')
 
     def add_folder_open_button(self):
-        self.fldr_browse_text = tk.StringVar()
-        self.fldr_browse_btn = tk.Button(self.root, textvariable=self.fldr_browse_text,
-                                         font="Raleway",
-                                         command=lambda: self.open_folder(),
-                                         anchor='center')
-        self.fldr_browse_text.set("Select folder...")
-        lbl_frame3 = Separator(master=self.root, orient='horizontal')
-        lbl_frame3.grid(column=0, row=6, columnspan=3, sticky="we")
-        lbl_frame4 = Separator(master=self.root, orient='horizontal')
-        lbl_frame4.grid(column=0, row=7, columnspan=3, sticky="we")
-        self.fldr_browse_btn.grid(column=1, row=5, pady=5, sticky='n')
+        fldr_browse_text = tk.StringVar()
+        fldr_browse_btn = tk.Button(self.root, textvariable=fldr_browse_text,
+                                    font="Raleway",
+                                    command=lambda: self.open_folder(),
+                                    anchor='center')
+        fldr_browse_text.set("Select folder...")
+        sep1 = Separator(master=self.root, orient='horizontal')
+        sep1.grid(column=0, row=6, columnspan=2, sticky="we")
+        sep2 = Separator(master=self.root, orient='horizontal')
+        sep2.grid(column=0, row=7, columnspan=2, sticky="we")
+        fldr_browse_btn.grid(column=1, row=5, pady=5, sticky='n')
 
     def add_insta_cutter_button(self):
-        self.insta_cutter_open_btn_text = tk.StringVar()
-        self.insta_cutter_open_btn = tk.Button(self.root,
-                                               textvariable=self.insta_cutter_open_btn_text,
-                                               font="Raleway",
-                                               command=lambda: self.open_insta_cutter(),
-                                               anchor='center')
-        self.insta_cutter_open_btn_text.set("Browse file")
-        self.insta_cutter_open_btn.grid(column=1, row=8, pady=6, sticky='n')
+        insta_cutter_open_btn_text = tk.StringVar()
+        insta_cutter_open_btn = tk.Button(self.root,
+                                          textvariable=insta_cutter_open_btn_text,
+                                          font="Raleway",
+                                          command=lambda: self.open_insta_cutter(),
+                                          anchor='center')
+        insta_cutter_open_btn_text.set("Browse file")
+        insta_cutter_open_btn.grid(column=1, row=8, pady=6, sticky='n')
 
-    def add_insta_start_cutting_button(self):
-        self.insta_start_cutting_btn_text = tk.StringVar()
-        self.insta_start_cutting_btn = tk.Button(self.root,
-                                                 textvariable=self.insta_start_cutting_btn_text,
-                                                 font="Raleway",
-                                                 command=lambda: self.start_insta_cutting(),
-                                                 anchor='center')
-        self.insta_start_cutting_btn_text.set("Start cutting")
-        # lbl_frame3 = Separator(master=self.root, orient='horizontal')
-        # lbl_frame3.grid(column=0, row=6, columnspan=3, sticky="we")
-        self.insta_start_cutting_btn.grid(column=2, row=8, sticky='w')
-
+    def toggle_insta_start_cutting_button(self):
+        print(self.insta_start_cutting_btn)
+        if not self.insta_is_start_btn_visible:
+            print(self.insta_parts_amount, 'paaaarts')
+            insta_start_cutting_btn_text = tk.StringVar()
+            self.insta_start_cutting_btn = tk.Button(self.root,
+                                                     textvariable=insta_start_cutting_btn_text,
+                                                     font="Raleway",
+                                                     command=lambda: self.start_insta_cutting(),
+                                                     anchor='center')
+            insta_start_cutting_btn_text.set("Start cutting")
+            self.insta_start_cutting_btn.grid(column=2, row=8, sticky='w')
+            self.insta_is_start_btn_visible = True
+            # self.insta_start_cutting_btn.after(3000, self.insta_start_cutting_btn.destroy)
+        else:
+            if self.insta_start_cutting_btn:
+                self.insta_start_cutting_btn.grid_remove()
+                self.insta_is_start_btn_visible = True
 
     def add_info_box(self):
         self.info_box = tk.Text(self.root, height=20, width=65, padx=20, font=("Raleway", 10))
@@ -151,14 +212,14 @@ class PanResizer(object):
     def update_info_box(self, message):
         self.info_box.insert(1.0, '\n\n%s' % message)
 
-
-
     def open_file(self):
         file = tk.filedialog.askopenfile(title="Choose a file",
                                          filetype=[("JPG file", "*.jpg"),
                                                    ("JPEG file", "*.jpeg")]
                                          )
         self.bulk_mode = False
+        self.insta_parts_amount = None
+        self.toggle_insta_start_cutting_button()
         if file:
             self.bulk_files = [file]
             self.update_info_box('File "%s" is opened.' % file.name)
@@ -172,6 +233,7 @@ class PanResizer(object):
                                            filetype=[("JPG file", "*.jpg"),
                                                      ("JPEG file", "*.jpeg")]
                                            )
+        self.insta_parts_amount = None
         self.bulk_mode = True
 
         self.initial_file = None
@@ -179,19 +241,15 @@ class PanResizer(object):
         self.initial_file_path = None
 
         if files:
-            print(files)
             self.bulk_files = files
-            print(self.bulk_files)
+
             self.update_info_box('Files are opened:\n %s' % [f.name for f in self.bulk_files])
             self.bulk_counter = len(self.bulk_files)
             self.bulk_count_now = 0
 
             self.start()
 
-
     def open_folder(self):
-
-        from tkinter.filedialog import Open
 
         folder_path = tk.filedialog.askdirectory(title="Choose folder to process all images")
 
@@ -204,6 +262,7 @@ class PanResizer(object):
                 f = io.TextIOWrapper(open((os.sep.join([folder_path, f]))))
                 files.append(f)
 
+            self.insta_parts_amount = None
             self.bulk_mode = True
 
             self.initial_file = None
@@ -217,10 +276,10 @@ class PanResizer(object):
             self.start()
 
     def open_insta_cutter(self):
-        file = tk.filedialog.askopenfile(title="Choose a file",
-                                         filetype=[("JPG file", "*.jpg"),
-                                                   ("JPEG file", "*.jpeg")]
-                                         )
+        file = askopenfile(title="Choose a file",
+                           filetype=[("JPG file", "*.jpg"),
+                                     ("JPEG file", "*.jpeg")]
+                           )
         if file:
             self.initial_file = file
             self.update_info_box('File "%s" is opened.' % file.name)
@@ -229,9 +288,7 @@ class PanResizer(object):
         else:
             return
 
-
     def start(self):
-
         self.initial_file = None
         self.initial_img = None
         self.initial_file_path = None
@@ -247,7 +304,7 @@ class PanResizer(object):
                 f = self.bulk_files[self.bulk_count_now]
                 self.initial_file = f
                 self.initial_img = Image.open(f.name)
-                self.initial_photo_img = ImageTk.PhotoImage(self.initial_img)
+                # self.initial_photo_img = ImageTk.PhotoImage(self.initial_img)
 
                 self.update_info_box(str('---' * 35) + '\n')
                 if self.bulk_mode:
@@ -269,14 +326,10 @@ class PanResizer(object):
     def start_inst_cutter(self):
 
         self.initial_img = None
-        self.initial_photo_img = None
 
         if self.initial_file:
-            # try:
+
             self.initial_img = Image.open(self.initial_file.name)
-
-            self.initial_photo_img = ImageTk.PhotoImage(self.initial_img)
-
             self.update_info_box('File opened for cutting:\n%s' % self.initial_file.name)
 
             self.calculate_initial_data()
@@ -304,35 +357,19 @@ class PanResizer(object):
                 self.add_responsive_frame()
 
     def add_responsive_frame(self):
-        # import pyautogui
-
+        
         def on_move(event):
-            component = event.widget
-            # print(component)
-            # locx, locy = component.winfo_x(), component.winfo_y()
-            # w, h = self.root.winfo_width(), self.root.winfo_height()
-            # mx, my = component.winfo_width(), component.winfo_height()
-            # xpos = (locx + event.x) - (15)
-            # ypos = (locy + event.y) - int(my / 2)
-            # if xpos >= 0 and ypos >= 0 and w - abs(xpos) >= 0 and h - abs(
-            #         ypos) >= 0 and xpos <= w - 5 and ypos <= h - 5:
-            #     component.coords(x=xpos, y=ypos)
-
-            # print(event.x, event.y)
-            # print(rect_middle_point_x, rect_middle_point_y)
-
             x1, y1, x2, y2 = (round(event.x - rect_middle_point_x),
                               round(event.y - rect_middle_point_y),
                               round(event.x + rect_middle_point_x),
                               round(event.y + rect_middle_point_y))
 
             print('Rect coords: %s' % str(self.preview_canvas.coords(self.rect)))
-            # print('CD: %s' % str(self.preview_img.size[0]))
 
-            if x1 >= -0.0 and x2 <= self.preview_img.size[0]:
+            if x1 >= -0.0 and x2 < self.preview_img.size[0]+1:
 
                 # draw rect
-                self.preview_canvas.coords(self.rect, x1, 0, x2, self.img_prevew_size[1])
+                self.preview_canvas.coords(self.rect, x1, 0, x2-1, self.img_prevew_size[1])
 
                 # draw central pint
                 self.preview_canvas.coords(self.touch_center,
@@ -343,13 +380,13 @@ class PanResizer(object):
                 print(self.preview_canvas.coords(self.rect))
 
                 # move vert separs
-                # print('Seps at move: %s' % str(self.ver_seps))
-                for i in range(1, len(self.ver_seps)+1):
+                print(len(self.insta_ver_seps))
+                for s in range(1, len(self.insta_ver_seps)+1):
                     self.preview_canvas.coords(
-                        self.ver_seps[i-1],
-                        self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i),
+                        self.insta_ver_seps[s-1],
+                        self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * s),
                         self.preview_canvas.coords(self.rect)[1],
-                        self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i),
+                        self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * s),
                         self.preview_canvas.coords(self.rect)[3],
                     )
 
@@ -366,11 +403,11 @@ class PanResizer(object):
             rec_x = self.img_prevew_size[1] * self.insta_parts_amount
             rec_y = self.img_prevew_size[1]
             print('Rec: ', rec_x, rec_y)
-            #
-            self.rect = self.preview_canvas.create_rectangle(1, 1,
-                                                 rec_x, rec_y,
-                                                 outline='red',
-                                                 width=1)
+
+            self.rect = self.preview_canvas.create_rectangle(0, 0,
+                                                             rec_x, rec_y,
+                                                             outline='red',
+                                                             width=1)
             rect_cords = self.preview_canvas.coords(self.rect)
             print('Rect coords: %s' % rect_cords)
 
@@ -383,34 +420,35 @@ class PanResizer(object):
                                                                 rect_middle_point_y+5,
                                                                 outline='red',
                                                                 width=1)
-            # create vertical lines:
-            self.ver_seps = []
-            for i in range(1, self.insta_parts_amount):
-                print(self.insta_parts_amount, ' parts')
-                print(self.preview_canvas.coords(self.rect)[2])
-                print(i, self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i))
-                self.ver_seps.append(self.preview_canvas.create_line(
-                    self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i),
-                    self.preview_canvas.coords(self.rect)[1],
-                    self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i),
-                    self.preview_canvas.coords(self.rect)[3],
-                    fill='red',
-                    dash=(2, 2)
-                ))
-                try:
-                    print((self.preview_canvas.coords(self.ver_seps[i])))
-                except Exception as e:
-                    print(e)
+            # add separators
+            self.insta_ver_seps = []
+            if self.insta_parts_amount:
+                for i in range(1, self.insta_parts_amount):
+                    print(self.insta_parts_amount, ' parts')
+                    print(self.preview_canvas.coords(self.rect)[2])
+                    print(i, self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i))
+                    self.insta_ver_seps.append(self.preview_canvas.create_line(
+                        self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i),
+                        self.preview_canvas.coords(self.rect)[1],
+                        self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i),
+                        self.preview_canvas.coords(self.rect)[3],
+                        fill='red',
+                        dash=(2, 2)
+                    ))
+                    print(self.insta_ver_seps)
+                    # try:
+                    # print((self.preview_canvas.coords(self.insta_ver_seps[i])))
+                    # except Exception as e:
+                    #     print(e)
             self.preview_canvas.bind('<B1-Motion>', on_move)
 
             self.preview_canvas.grid()
 
-            # self.get_insta_frame_position()
-
     def get_insta_frame_position(self):
         if self.rect:
             self.insta_start_cut_preview_position_x = self.preview_canvas.coords(self.rect)[0]
-            self.add_insta_start_cutting_button()
+            if self.insta_parts_amount:
+                self.toggle_insta_start_cutting_button()
 
     def start_insta_cutting(self):
         if self.insta_start_cut_preview_position_x < 1:
@@ -427,7 +465,7 @@ class PanResizer(object):
 
         tails = []
         if self.insta_start_cut_original_position_x is not None:
-            # print(self.initial_img.size)
+
             for i in range(0, self.insta_parts_amount):
                 print('Processing tail # %d' % i)
 
@@ -436,32 +474,6 @@ class PanResizer(object):
                 print('Tail %d: \nX+: %s\n\n' % (
                     i, self.insta_start_cut_original_position_x +
                     i * self.initial_height + self.initial_height))
-                # print('Tail %d:\n'
-                #       'X: %s\n'
-                #       'Y: %s\n'
-                #       'X+widht: %s\n'
-                #       'Y+width: %s' % (i,
-                #                    self.insta_start_cut_original_position_x * i,
-                #                    0,
-                #                    (self.insta_start_cut_original_position_x +
-                #                     self.preview_canvas.coords(self.rect)[-1]) * i,
-                #                    self.preview_canvas.coords(self.rect)[-1]
-                #                    ))
-                # print('Tail: ',
-                #       (i* self.insta_start_cut_original_position_x,
-                #        0,
-                #        self.insta_start_cut_original_position_x + (
-                #                i * self.initial_width / self.insta_parts_amount),
-                #        self.initial_width / self.insta_parts_amount)
-                #       )
-                # # try:
-
-                # tails.append(self.initial_img.crop(
-                #     (i *self.insta_start_cut_original_position_x,
-                #     0,
-                #     self.insta_start_cut_original_position_x + (i * self.initial_width / self.insta_parts_amount),
-                #     self.initial_width / self.insta_parts_amount)
-                # ))
 
                 tails.append(self.initial_img.crop(
                     (self.insta_start_cut_original_position_x + i * self.initial_height,
@@ -471,10 +483,6 @@ class PanResizer(object):
                      self.initial_height)
                 ))
 
-                # except Exception as e:
-                #     print(e)
-            # print(tails)
-
         for i in range(len(tails)):
             tail = tails[i]
             file = asksaveasfile(
@@ -483,9 +491,7 @@ class PanResizer(object):
                 initialfile='%d_part_of_%s.jpg' % (i+1, str(os.path.split(self.initial_file.name)[-1])))
             if file:
                 tail.save(file, quality=100, subsampling=0, icc_profile=self.icc_profile)
-
-
-
+                self.update_info_box('Tail saved as: %s \n' % file)
 
     def add_counter_display(self):
         if self.bulk_count_now + 1 <= self.bulk_counter:
@@ -495,9 +501,7 @@ class PanResizer(object):
                                anchor='se')
             counter.grid(column=2, row=11, rowspan=2, sticky='N')
 
-
     def calculate_initial_data(self):
-        print(self.initial_img)
         if self.initial_img:
             self.initial_height = self.initial_img.height
             self.initial_width = self.initial_img.width
@@ -532,7 +536,6 @@ class PanResizer(object):
             self.preview_canvas.create_image(0, 0, image=preview, anchor='nw')
             self.preview_canvas.grid(column=0, row=10, columnspan=3)
 
-
     def ask_new_size(self):
 
         if self.bulk_files[0] == self.initial_file:
@@ -548,7 +551,6 @@ class PanResizer(object):
                 return
             if self.needed_mb >= self.initial_file_mb:
                 self.update_info_box('Processing is not needed because the initial file larger than desirable one.')
-
 
     def smart_resize(self):
         print('Start resize: %s' % self.initial_file.name)
@@ -602,12 +604,9 @@ class PanResizer(object):
                     print('New height: %s' % new_height)
                     img = img_orig.resize((int(new_width), int(new_height)))
 
-
     def add_example_frame(self):
-
         try:
             print('Result size: ', self.result_size)
-
             self.crop_factor_x = self.result_size[0] / self.initial_width
             self.crop_factor_y = self.result_size[1] / self.initial_height
 
@@ -622,9 +621,7 @@ class PanResizer(object):
                                                  width=2)
             self.preview_canvas.grid()
         except Exception as e:
-            # self.log.append(e)
             self.update_info_box(e)
-
 
     def save_process(self):
 
@@ -638,8 +635,6 @@ class PanResizer(object):
                     '.jpg', '_resized_to_%s_Mb.jpg' % str(self.filesize/1048576).replace('.', ',')[:4]))
             if file:
                 self.candidate_img.save(file, quality=100, subsampling=0, icc_profile=self.icc_profile)
-                # self.can_process_next_file = tk.IntVar()
-                # self.can_process_next_file.set(1)
                 self.update_info_box('File saved:\n%s\n' % file.name)
                 if self.bulk_mode:
                     self.add_next_button()
@@ -648,47 +643,30 @@ class PanResizer(object):
                 return
 
         if self.is_resize_complete:
-            self.save_text = tk.StringVar()
-            self.save_btn = tk.Button(self.root, textvariable=self.save_text,
-                                      font="Raleway",
-                                      command=lambda: save_file(self))
-            self.save_text.set("Save...")
-            self.save_btn.grid(column=2, row=11)
+            save_text = tk.StringVar()
+            save_btn = tk.Button(self.root, textvariable=save_text,
+                                 font="Raleway",
+                                 command=lambda: save_file(self))
+            save_text.set("Save...")
+            save_btn.grid(column=2, row=11)
 
 
 
     def add_next_button(self):
-        print('Add next button')
-        def press_next_button(self):
-            self.next_btn_pressed_var.set(1)
-            self.next_btn_pressed_var.get()
-            # print(self.is_next_button_pressed)
-            # print(self.bulk_count_now)
-            # print(self.bulk_counter)
 
+        def press_next_button(self):
             self.is_next_button_pressed = True
+            print(self.is_next_button_pressed)
             self.bulk_count_now += 1
 
             self.start()
 
-
-        self.next_btn_pressed_var = tk.IntVar()
-
-        self.next_btn_text = tk.StringVar()
-        self.next_btn = tk.Button(self.root, textvariable=self.next_btn_text,
-                                  font="Raleway",
-                                  command=lambda: press_next_button(self))
-        self.next_btn_text.set("Next")
-        self.next_btn.grid(column=2, row=11, sticky='N', pady=30)
-
-        # print('aue')
-        # print(self.next_btn_pressed_var.get())
-
-
-
-        # self.next_btn.wait_variable(self.next_btn_pressed_var)
-
-
+        next_btn_text = tk.StringVar()
+        next_btn = tk.Button(self.root, textvariable=next_btn_text,
+                             font="Raleway",
+                             command=lambda: press_next_button(self))
+        next_btn_text.set("Next")
+        next_btn.grid(column=2, row=11, sticky='N', pady=30)
 
 
 
@@ -702,7 +680,10 @@ class PanResizer(object):
         self.add_open_button()
         self.add_bulk_open_button()
         self.add_folder_open_button()
+
         self.add_insta_cutter_button()
+        # self.add_insta_start_cutting_button()
+        # self.toggle_insta_start_cutting_button()
 
         # self.process()
 
@@ -714,31 +695,33 @@ class PanResizer(object):
         self.root.mainloop()
 
 
-class SettingsWindow(tk.Toplevel):
 
-    def __init__(self, master=None):
-        # tk.Toplevel.__init__(self, master)
-        super(SettingsWindow, self).__init__(master=master)
-        self.master_window = master
-        self.settings_window = self
-        self.settings_window.wm_title("Settings")
-        self.master_window.title("AUE")
-        print(dir(self.master_window))
-        # print(self.master_window.root)
-        # print(master.logo_label.get(self))
-        # a = self.root()
-        # print(self.logo_label)
 
-        self.settings_window.wm_geometry("300x300")
-        settings_frame = tk.Frame(master)
-
-        self.settings_canvas = tk.Canvas(settings_frame, height=200, width=300)
-        self.wm_geometry()
-        self.settings_exit_button = tk.Button(
-            self, text="Exit", highlightbackground="#56B426", command=self.destroy)
-        self.settings_exit_button.grid(column=2, row=2, sticky='ne')
-        # print(self.canvas.title)
-        self.settings_canvas.grid(column=3, row=3)
+# class SettingsWindow(tk.Toplevel):
+#
+#     def __init__(self, master=None):
+#         # tk.Toplevel.__init__(self, master)
+#         super(SettingsWindow, self).__init__(master=master)
+#         self.master_window = master
+#         self.settings_window = self
+#         self.settings_window.wm_title("Settings")
+#         self.master_window.title("AUE")
+#         print(dir(self.master_window))
+#         # print(self.master_window.root)
+#         # print(master.logo_label.get(self))
+#         # a = self.root()
+#         # print(self.logo_label)
+#
+#         self.settings_window.wm_geometry("300x300")
+#         settings_frame = tk.Frame(master)
+#
+#         self.settings_canvas = tk.Canvas(settings_frame, height=200, width=300)
+#         self.wm_geometry()
+#         self.settings_exit_button = tk.Button(
+#             self, text="Exit", highlightbackground="#56B426", command=self.destroy)
+#         self.settings_exit_button.grid(column=2, row=2, sticky='ne')
+#         # print(self.canvas.title)
+#         self.settings_canvas.grid(column=3, row=3)
 
 
 
