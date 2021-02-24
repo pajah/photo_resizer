@@ -18,8 +18,9 @@ import os
 CANVAS_SIZE = (600, 300)
 PREVIEW_SIZE = (600, 300)
 
-Image.MAX_IMAGE_PIXELS = None
+INITIAL_FILE_SIZE_MB = 49.9
 
+Image.MAX_IMAGE_PIXELS = None
 
 
 
@@ -48,20 +49,18 @@ class PanResizer(object):
 
         self.touch_center = None
         self.rect = None
-        
-        # self.cand_size_mb = None
-        # self.cand_percentage = None
+
         self.preview_canvas = None
         self.result_size = None
         self.bulk_mode = None
         self.bulk_files = None
 
+        self.butch_size_default = INITIAL_FILE_SIZE_MB
+
         self.crop_factor_x = None
         self.crop_factor_y = None
         self.is_resize_complete = None
-        # self.is_cand_save_complete = None
         self.filesize = None
-        # self.can_process_next_file = None
         self.bulk_counter = None
         self.bulk_count_now = None
         self.is_next_button_pressed = False
@@ -76,15 +75,16 @@ class PanResizer(object):
 
         self.is_settings_opened = None
         self.master_column_number = 2
-        self.master_row_nubmer = 11
-
+        self.master_row_nubmer = 12
+        self.settings_frame = None
+        self.settings_def_size_lbl = None
 
     def create_canvas(self):
         self.main_frame = tk.Frame(self.root, padx=0, width=CANVAS_SIZE[0])
         self.canvas = tk.Canvas(self.main_frame, height=CANVAS_SIZE[0], width=CANVAS_SIZE[1],
                                 borderwidth=0)
         self.canvas.grid(column=self.master_column_number, row=self.master_row_nubmer,
-                         padx=0)
+                         padx=0, pady=0)
 
     def add_settings_button(self):
 
@@ -94,36 +94,6 @@ class PanResizer(object):
                                  command=lambda: self.toggle_settings())
         settings_btn_text.set("Settings")
         settings_btn.grid(column=0, row=0)
-
-    def toggle_settings(self):
-        if self.is_settings_opened:
-            # self.settings_ver_sep.destroy()
-            self.settings_canvas.destroy()
-            self.master_column_number -= 2
-            self.is_settings_opened = False
-        else:
-            self.master_column_number += 2
-            self.is_settings_opened = True
-
-            self.settings_canvas = tk.LabelFrame(self.root,
-                                             width=200, height=CANVAS_SIZE[0],
-                                             borderwidth=2,
-                                                 padx=2
-                                             )
-            self.settings_canvas.grid(column=self.master_column_number-2,
-                                      row=0,
-                                      rowspan=12,
-                                      sticky='sn')
-
-            self.settings_ver_sep = Separator(master=self.settings_canvas,
-                                              orient='vertical',
-                                              )
-            # self.settings_ver_sep.grid(column=2, row=2, rowspan=5, sticky='w', padx=5)
-
-
-
-            self.test_lbl = tk.Label(self.settings_canvas, text='SSSS', padx=40)
-            self.test_lbl.grid(column=self.master_column_number, row=4, pady=100)
 
     def add_logo(self):
         logo = Image.open('logo.jpg')
@@ -162,6 +132,7 @@ class PanResizer(object):
         sep = Separator(master=self.root, orient='horizontal')
         sep.grid(column=0, row=4, sticky="we", columnspan=2)
         bulk_browse_btn.grid(column=1, row=3, pady=5, sticky='n')
+        # bulk_browse_btn.grid(column=1, row=3, sticky='n')
 
     def add_folder_open_button(self):
         fldr_browse_text = tk.StringVar()
@@ -184,7 +155,7 @@ class PanResizer(object):
                                           command=lambda: self.open_insta_cutter(),
                                           anchor='center')
         insta_cutter_open_btn_text.set("Browse file")
-        insta_cutter_open_btn.grid(column=1, row=8, pady=6, sticky='n')
+        insta_cutter_open_btn.grid(column=1, row=8, pady=5, sticky='n')
 
     def toggle_insta_start_cutting_button(self):
         print(self.insta_start_cutting_btn)
@@ -207,7 +178,7 @@ class PanResizer(object):
 
     def add_info_box(self):
         self.info_box = tk.Text(self.root, height=20, width=65, padx=20, font=("Raleway", 10))
-        self.info_box.grid(columnspan=2, column=0, row=11)
+        self.info_box.grid(columnspan=2, column=0, row=12)
 
     def update_info_box(self, message):
         self.info_box.insert(1.0, '\n\n%s' % message)
@@ -312,7 +283,11 @@ class PanResizer(object):
                 self.update_info_box('Starting processing file:\n%s' % f.name)
                 self.calculate_initial_data()
                 self.make_preview()
-                self.ask_new_size()
+                if not self.butch_size_default:
+                    print('size default: %s' % self.butch_size_default)
+                    self.ask_new_size()
+                else:
+                    self.needed_mb = self.butch_size_default
                 self.smart_resize()
                 self.save_process()
             except IndexError:
@@ -499,7 +474,7 @@ class PanResizer(object):
                                text="[Image %s of %s ]" % (self.bulk_count_now + 1, self.bulk_counter),
                                font=("Raleway", 9),
                                anchor='se')
-            counter.grid(column=2, row=11, rowspan=2, sticky='N')
+            counter.grid(column=0, row=11, sticky='nw', pady=5)
 
     def calculate_initial_data(self):
         if self.initial_img:
@@ -531,26 +506,25 @@ class PanResizer(object):
     def place_preview(self):
         if self.img_preview:
             preview = self.img_preview
-            self.preview_canvas = tk.Canvas(self.root, width=600, height=300,
+            self.preview_canvas = tk.Canvas(self.root, width=600, height=200,
                                             borderwidth=0, highlightthickness=0)
             self.preview_canvas.create_image(0, 0, image=preview, anchor='nw')
-            self.preview_canvas.grid(column=0, row=10, columnspan=3)
+            self.preview_canvas.grid(column=0, row=10, columnspan=2)
 
     def ask_new_size(self):
-
-        if self.bulk_files[0] == self.initial_file:
-            needed_size_mb = askfloat(
-                "Set desirable file size in MBytes",
-                "Input needed MBytes amount for file\n %s" % os.path.split(self.initial_file.name)[-1],
-                parent=self.root,
-                initialvalue="49.9")
-            if needed_size_mb:
-                self.needed_mb = needed_size_mb
-                self.update_info_box('Desirable size of input file: %s Mb' % self.needed_mb)
-            else:
-                return
-            if self.needed_mb >= self.initial_file_mb:
-                self.update_info_box('Processing is not needed because the initial file larger than desirable one.')
+        # if self.bulk_files[0] == self.initial_file:
+        needed_size_mb = askfloat(
+            "Set desirable file size in MBytes",
+            "Input needed MBytes amount for file\n %s" % os.path.split(self.initial_file.name)[-1],
+            parent=self.root,
+            initialvalue="49.9")
+        if needed_size_mb:
+            self.needed_mb = needed_size_mb
+            self.update_info_box('Desirable size of input file: %s Mb' % self.needed_mb)
+        else:
+            return
+        if self.needed_mb >= self.initial_file_mb:
+            self.update_info_box('Processing is not needed because the initial file larger than desirable one.')
 
     def smart_resize(self):
         print('Start resize: %s' % self.initial_file.name)
@@ -648,25 +622,194 @@ class PanResizer(object):
                                  font="Raleway",
                                  command=lambda: save_file(self))
             save_text.set("Save...")
-            save_btn.grid(column=2, row=11)
-
-
+            save_btn.grid(column=2, row=10, sticky='sw')
 
     def add_next_button(self):
 
         def press_next_button(self):
             self.is_next_button_pressed = True
             print(self.is_next_button_pressed)
-            self.bulk_count_now += 1
-
-            self.start()
+            if self.bulk_count_now < self.bulk_counter:
+                self.bulk_count_now += 1
+                self.start()
 
         next_btn_text = tk.StringVar()
         next_btn = tk.Button(self.root, textvariable=next_btn_text,
                              font="Raleway",
                              command=lambda: press_next_button(self))
         next_btn_text.set("Next")
-        next_btn.grid(column=2, row=11, sticky='N', pady=30)
+        next_btn.grid(column=2, row=10, sticky='N', pady=30)
+
+    def toggle_settings(self):
+        if self.is_settings_opened:
+            # self.settings_ver_sep.destroy()
+            self.settings_frame.destroy()
+            self.master_column_number -= 2
+            self.is_settings_opened = False
+        else:
+            self.master_column_number += 2
+            self.is_settings_opened = True
+
+            self.create_settings()
+
+    def create_settings(self):
+
+        self.settings_frame = tk.LabelFrame(self.root,
+                                            width=250, height=CANVAS_SIZE[0],
+                                            borderwidth=2)
+        self.settings_frame.grid(column=self.master_column_number - 2,
+                                 row=2,
+                                 rowspan=11,
+                                 sticky='snw',
+                                 pady=5)
+
+        bulk_separ = Separator(master=self.settings_frame, orient='horizontal')
+        bulk_separ.grid(column=self.master_column_number - 2, row=7, sticky="we",
+                        columnspan=3)
+
+        # for row in range(self.master_row_nubmer):
+        #     self.settings_frame.rowconfigure(row, minsize=13)
+        self.add_setting_butch_keep_size_radio()
+
+    def add_setting_butch_keep_size_radio(self):
+
+        def ask_default_size():
+            needed_size_mb = askfloat(
+                "Set desirable file size in MBytes",
+                "Input for all files in bulk",
+                parent=self.settings_frame,
+                initialvalue="49.9")
+            if not needed_size_mb:
+                return
+            else:
+                self.butch_size_default = needed_size_mb
+                add_default_size_mb_lable()
+
+        self.butch_size_radio_var = tk.IntVar()
+        self.butch_size_radio_var.set(1)  # set default as default
+
+        self.butch_size_mode = tk.StringVar(None, 'default')
+
+        self.ask_default_value_btn = tk.Button(self.settings_frame,
+                                               text='Set size',
+                                               command=lambda: ask_default_size(),
+                                               font=("Raleway", 10),
+                                               height=1
+                                               )
+
+        def set_butch_size_ask_each_time():
+            self.butch_size_mode.set('each_time')
+            butch_size_radio_ask_each.setvar('value', 1)
+            butch_size_radio_set_def.setvar('value', 0)
+            print(self.butch_size_mode.get())
+            if self.ask_default_value_btn:
+                self.ask_default_value_btn.destroy()
+            if self.settings_def_size_lbl:
+                self.settings_def_size_lbl.destroy()
+
+        def set_butch_size_set_default():
+            self.butch_size_mode.set('default')
+            print(self.butch_size_mode.get())
+            butch_size_radio_set_def.setvar('value', 1)
+            butch_size_radio_ask_each.setvar('value', 0)
+            add_ask_size_button()
+            add_default_size_mb_lable()
+
+        def add_default_size_mb_lable():
+            print('def lable')
+            print(self.butch_size_default)
+            if self.butch_size_default and self.butch_size_mode.get() == 'default':
+                self.settings_def_size_lbl = tk.Label(self.settings_frame,
+                                        text='Now: %s' % self.butch_size_default,
+                                        font=("Raleway", 9, 'bold'),
+                                        bg='brown')
+                self.settings_def_size_lbl.grid(column=self.master_column_number, row=4, sticky="ns",
+                                  pady=0)
+
+        def add_ask_size_button():
+            self.ask_default_value_btn = tk.Button(self.settings_frame,
+                                                   text='Set size',
+                                                   command=lambda: ask_default_size(),
+                                                   font=("Raleway", 10),
+                                                   height=1
+                                                   )
+            self.ask_default_value_btn.grid(column=self.master_column_number,
+                                            row=6,
+                                            sticky='s',
+                                            pady=5
+                                            )
+
+        add_default_size_mb_lable()
+        add_ask_size_button()
+
+        butch_size_radio_ask_each = tk.Radiobutton(self.settings_frame,
+                                                   text='Ask each photo',
+                                                   variable=self.butch_size_radio_var,
+                                                   command=set_butch_size_ask_each_time,
+                                                   value=0,
+                                                   # tristatevalue="each_time",
+                                                   # height=1
+                                                   )
+        butch_size_radio_set_def = tk.Radiobutton(self.settings_frame,
+                                                  text='Set default',
+                                                  variable=self.butch_size_radio_var,
+                                                  command=set_butch_size_set_default,
+                                                  value=1,
+                                                  # tristatevalue="",
+                                                  # height=1,
+                                        bg='yellow')
+        butch_size_radio_ask_each.grid(column=self.master_column_number-1,
+                                       row=3, sticky='nw', pady=5)
+        butch_size_radio_set_def.grid(column=self.master_column_number,
+                                      # row=3, sticky='nw', pady=20)
+                                      row=3, sticky='nw', pady=5)
+
+        # if butch_size_radio_var:
+        #     print(butch_size_radio_var.get())
+
+        # self.settings_butch_ask_size_each_time = tk.IntVar()
+        # self.settings_butch_ask_size_each_time.set(1)
+        # keep_size_flag = tk.Checkbutton(self.settings_frame,
+        #                                 text='Ask each time',
+        #                                 variable=self.settings_butch_ask_size_each_time,
+        #                                 onvalue=1, offvalue=0,
+        #                                 height=13,
+        #                                 width=15)
+        # keep_size_flag.grid(column=self.master_column_number-1, row=5, sticky="nw")
+        #
+        # self.settings_butch_set_default_size = tk.IntVar()
+        # self.settings_butch_set_default_size = tk.IntVar(0)
+        # set_def_size_flag = tk.Checkbutton(self.settings_frame,
+        #                                    text='Set default:',
+        #                                    variable=self.settings_butch_set_default_size,
+        #                                    onvalue=1, offvalue=0,
+        #                                    height=13,
+        #                                    width=15)
+        # if self.settings_butch_set_default_size.get() == 1:
+        #     keep_size_flag.deselect()
+        # set_def_size_flag.grid(column=self.master_column_number, row=5, sticky="nw")
+
+            # self.settings_ver_sep = Separator(master=self.settings_frame,
+            #                                   orient='vertical',
+            #                                   )
+            # self.settings_ver_sep.grid(column=2, row=2, rowspan=5, sticky='w', padx=5)
+
+            # rows = []
+            # for row in range(10):
+            #     rows.append(tk.Label(self.settings_canvas, text=row))
+            #
+            #
+            # # self.test_lbl = tk.Label(self.settings_canvas, text='SSSS', padx=40)
+            # # self.test_lbl.grid(column=self.master_column_number, row=4, pady=100)
+            #
+            # for r in range(len(rows)):
+            #     rows[r].grid(column=self.master_column_number, row=r, pady=100)
+
+    def show_startup(self):
+        text = 'Hi!\n' \
+               'Default size for output files id %s Mb now.\n' \
+               'You could change it in settings.\n' % self.butch_size_default
+        self.update_info_box(text)
 
 
 
@@ -691,6 +834,8 @@ class PanResizer(object):
         # self.calculate_initial_data()
 
         self.add_settings_button()
+
+        self.show_startup()
 
         self.root.mainloop()
 
