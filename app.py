@@ -7,7 +7,7 @@ from time import sleep
 
 from tkinter.simpledialog import askfloat
 
-from tkinter.ttk import Separator
+from tkinter.ttk import Separator, Combobox
 from PIL import Image, ImageTk
 from PIL.Image import DecompressionBombError
 
@@ -19,6 +19,10 @@ CANVAS_SIZE = (600, 300)
 PREVIEW_SIZE = (600, 300)
 
 INITIAL_FILE_SIZE_MB = 49.9
+
+INSTA_CUT_DEFAULT_TAILS_VARIANTS = [3, 4, 5, 6, 7, 8, 9, 10]
+INSTA_CUT_DEFAULT_TAILS_AMOUNT = INSTA_CUT_DEFAULT_TAILS_VARIANTS[0]
+INSTA_CUT_MINIMUM_TAIL_SIZE_PX = 1080
 
 Image.MAX_IMAGE_PIXELS = None
 
@@ -76,8 +80,16 @@ class PanResizer(object):
         self.is_settings_opened = None
         self.master_column_number = 2
         self.master_row_nubmer = 12
+
         self.settings_frame = None
         self.settings_def_size_lbl = None
+        self.settings_butch_size_radio_var = None
+        self.settings_butch_size_mode = None
+        self.settings_ask_default_value_btn = None
+
+        self.settings_insta_tails_amount = None
+        self.settings_insta_tails_amount = None
+        self.settings_insta_tails_drop = None
 
     def create_canvas(self):
         self.main_frame = tk.Frame(self.root, padx=0, width=CANVAS_SIZE[0])
@@ -320,7 +332,10 @@ class PanResizer(object):
             if not self.initial_width or not self.initial_height:
                 self.calculate_initial_data()
 
-            self.insta_parts_amount = int(self.initial_width / self.initial_height)
+            if not self.settings_insta_tails_amount:
+                self.insta_parts_amount = int(self.initial_width / self.initial_height)
+            else:
+                self.insta_parts_amount = self.settings_insta_tails_amount
             if self.insta_parts_amount < 3:
                 self.update_info_box('The weidth of image is not lareger than 3 x heighgt.\n'
                                      'Aborting.')
@@ -332,7 +347,7 @@ class PanResizer(object):
                 self.add_responsive_frame()
 
     def add_responsive_frame(self):
-        
+
         def on_move(event):
             x1, y1, x2, y2 = (round(event.x - rect_middle_point_x),
                               round(event.y - rect_middle_point_y),
@@ -393,7 +408,7 @@ class PanResizer(object):
                                                                 rect_middle_point_y-5,
                                                                 rect_middle_point_x+5,
                                                                 rect_middle_point_y+5,
-                                                                outline='red',
+                                                                outline='magenta',
                                                                 width=1)
             # add separators
             self.insta_ver_seps = []
@@ -670,6 +685,7 @@ class PanResizer(object):
         # for row in range(self.master_row_nubmer):
         #     self.settings_frame.rowconfigure(row, minsize=13)
         self.add_setting_butch_keep_size_radio()
+        self.add_setting_insta_cut_tails_amount()
 
     def add_setting_butch_keep_size_radio(self):
 
@@ -685,31 +701,31 @@ class PanResizer(object):
                 self.butch_size_default = needed_size_mb
                 add_default_size_mb_lable()
 
-        self.butch_size_radio_var = tk.IntVar()
-        self.butch_size_radio_var.set(1)  # set default as default
+        self.settings_butch_size_radio_var = tk.IntVar()
+        self.settings_butch_size_radio_var.set(1)  # set default as default
 
-        self.butch_size_mode = tk.StringVar(None, 'default')
+        self.settings_butch_size_mode = tk.StringVar(None, 'default')
 
-        self.ask_default_value_btn = tk.Button(self.settings_frame,
-                                               text='Set size',
-                                               command=lambda: ask_default_size(),
-                                               font=("Raleway", 10),
-                                               height=1
-                                               )
+        self.settings_ask_default_value_btn = tk.Button(self.settings_frame,
+                                                        text='Set size',
+                                                        command=lambda: ask_default_size(),
+                                                        font=("Raleway", 10),
+                                                        height=1
+                                                        )
 
         def set_butch_size_ask_each_time():
-            self.butch_size_mode.set('each_time')
+            self.settings_butch_size_mode.set('each_time')
             butch_size_radio_ask_each.setvar('value', 1)
             butch_size_radio_set_def.setvar('value', 0)
-            print(self.butch_size_mode.get())
-            if self.ask_default_value_btn:
-                self.ask_default_value_btn.destroy()
+            print(self.settings_butch_size_mode.get())
+            if self.settings_ask_default_value_btn:
+                self.settings_ask_default_value_btn.destroy()
             if self.settings_def_size_lbl:
                 self.settings_def_size_lbl.destroy()
 
         def set_butch_size_set_default():
-            self.butch_size_mode.set('default')
-            print(self.butch_size_mode.get())
+            self.settings_butch_size_mode.set('default')
+            print(self.settings_butch_size_mode.get())
             butch_size_radio_set_def.setvar('value', 1)
             butch_size_radio_ask_each.setvar('value', 0)
             add_ask_size_button()
@@ -718,7 +734,7 @@ class PanResizer(object):
         def add_default_size_mb_lable():
             print('def lable')
             print(self.butch_size_default)
-            if self.butch_size_default and self.butch_size_mode.get() == 'default':
+            if self.butch_size_default and self.settings_butch_size_mode.get() == 'default':
                 self.settings_def_size_lbl = tk.Label(self.settings_frame,
                                         text='Now: %s' % self.butch_size_default,
                                         font=("Raleway", 9, 'bold'),
@@ -727,24 +743,24 @@ class PanResizer(object):
                                   pady=0)
 
         def add_ask_size_button():
-            self.ask_default_value_btn = tk.Button(self.settings_frame,
-                                                   text='Set size',
-                                                   command=lambda: ask_default_size(),
-                                                   font=("Raleway", 10),
-                                                   height=1
-                                                   )
-            self.ask_default_value_btn.grid(column=self.master_column_number,
-                                            row=6,
-                                            sticky='s',
-                                            pady=5
-                                            )
+            self.settings_ask_default_value_btn = tk.Button(self.settings_frame,
+                                                            text='Set size',
+                                                            command=lambda: ask_default_size(),
+                                                            font=("Raleway", 10),
+                                                            height=1
+                                                            )
+            self.settings_ask_default_value_btn.grid(column=self.master_column_number,
+                                                     row=6,
+                                                     sticky='s',
+                                                     pady=5
+                                                     )
 
         add_default_size_mb_lable()
         add_ask_size_button()
 
         butch_size_radio_ask_each = tk.Radiobutton(self.settings_frame,
                                                    text='Ask each photo',
-                                                   variable=self.butch_size_radio_var,
+                                                   variable=self.settings_butch_size_radio_var,
                                                    command=set_butch_size_ask_each_time,
                                                    value=0,
                                                    # tristatevalue="each_time",
@@ -752,62 +768,55 @@ class PanResizer(object):
                                                    )
         butch_size_radio_set_def = tk.Radiobutton(self.settings_frame,
                                                   text='Set default',
-                                                  variable=self.butch_size_radio_var,
+                                                  variable=self.settings_butch_size_radio_var,
                                                   command=set_butch_size_set_default,
                                                   value=1,
                                                   # tristatevalue="",
                                                   # height=1,
-                                        bg='yellow')
+                                                  bg='yellow')
         butch_size_radio_ask_each.grid(column=self.master_column_number-1,
                                        row=3, sticky='nw', pady=5)
         butch_size_radio_set_def.grid(column=self.master_column_number,
                                       # row=3, sticky='nw', pady=20)
                                       row=3, sticky='nw', pady=5)
 
-        # if butch_size_radio_var:
-        #     print(butch_size_radio_var.get())
+    def add_setting_insta_cut_tails_amount(self):
 
-        # self.settings_butch_ask_size_each_time = tk.IntVar()
-        # self.settings_butch_ask_size_each_time.set(1)
-        # keep_size_flag = tk.Checkbutton(self.settings_frame,
-        #                                 text='Ask each time',
-        #                                 variable=self.settings_butch_ask_size_each_time,
-        #                                 onvalue=1, offvalue=0,
-        #                                 height=13,
-        #                                 width=15)
-        # keep_size_flag.grid(column=self.master_column_number-1, row=5, sticky="nw")
-        #
-        # self.settings_butch_set_default_size = tk.IntVar()
-        # self.settings_butch_set_default_size = tk.IntVar(0)
-        # set_def_size_flag = tk.Checkbutton(self.settings_frame,
-        #                                    text='Set default:',
-        #                                    variable=self.settings_butch_set_default_size,
-        #                                    onvalue=1, offvalue=0,
-        #                                    height=13,
-        #                                    width=15)
-        # if self.settings_butch_set_default_size.get() == 1:
-        #     keep_size_flag.deselect()
-        # set_def_size_flag.grid(column=self.master_column_number, row=5, sticky="nw")
+        if self.initial_img:
+            self.settings_insta_tails_amount = tk.IntVar()
+            self.settings_insta_tails_amount.set(INSTA_CUT_DEFAULT_TAILS_AMOUNT)
 
-            # self.settings_ver_sep = Separator(master=self.settings_frame,
-            #                                   orient='vertical',
-            #                                   )
-            # self.settings_ver_sep.grid(column=2, row=2, rowspan=5, sticky='w', padx=5)
+            max_tails_amount = int(self.initial_height / INSTA_CUT_MINIMUM_TAIL_SIZE_PX)
+            print('Min tails amount: %s' % max_tails_amount)
 
-            # rows = []
-            # for row in range(10):
-            #     rows.append(tk.Label(self.settings_canvas, text=row))
-            #
-            #
-            # # self.test_lbl = tk.Label(self.settings_canvas, text='SSSS', padx=40)
-            # # self.test_lbl.grid(column=self.master_column_number, row=4, pady=100)
-            #
-            # for r in range(len(rows)):
-            #     rows[r].grid(column=self.master_column_number, row=r, pady=100)
+            tails_list = INSTA_CUT_DEFAULT_TAILS_VARIANTS[:max_tails_amount-2]
+
+            self.settings_insta_tails_drop = Combobox(self.settings_frame,
+                                                      values=tails_list,
+                                                      width=3,
+                                                      postcommand=lambda: print(self.settings_insta_tails_amount.set(
+                                                          self.settings_insta_tails_drop.get()))
+                                                      )
+            self.settings_insta_tails_drop.grid(column=self.master_column_number,
+                                                row=8, sticky='nw')
+            self.settings_insta_tails_drop.current(0)
+            print(self.settings_insta_tails_amount.get())
+            print(self.initial_width)
+
+            def set_dropbox_amount(event):
+                self.settings_insta_tails_amount.set(self.settings_insta_tails_drop.get())
+                print(self.settings_insta_tails_drop.get())
+
+            self.settings_insta_tails_drop.bind(
+                "<<ComboboxSelected>>", set_dropbox_amount)
+            # print(self.settings_insta_tails_drop.current(), self.settings_insta_tails_drop.get())
+        else:
+            return
+
 
     def show_startup(self):
         text = 'Hi!\n' \
-               'Default size for output files id %s Mb now.\n' \
+               'Default size for output files is %s Mb now.\n' \
                'You could change it in settings.\n' % self.butch_size_default
         self.update_info_box(text)
 
