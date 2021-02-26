@@ -49,10 +49,12 @@ class PanResizer(object):
 
         self.needed_mb = None
         self.icc_profile = None
+        self.im_info_dpi = None
         self.candidate_img = None
 
-        self.touch_center = None
         self.rect = None
+        self.touch_center = None
+        self.move_corner = None
 
         self.preview_canvas = None
         self.result_size = None
@@ -72,10 +74,17 @@ class PanResizer(object):
         self.insta_preview_img = None
         self.insta_start_cut_preview_position_x = None
         self.insta_start_cut_original_position_x = None
+        self.insta_start_cut_preview_position_y = None
+        self.insta_start_cut_original_position_y = None
         self.insta_parts_amount = None
         self.insta_ver_seps = []
         self.insta_start_cutting_btn = None
-        self.insta_is_start_btn_visible = True
+        self.insta_is_start_btn_visible = None
+        self.teil_heigh = None
+
+        self.rect_cords = None
+        self.rect_middle_point_x = None
+        self.rect_middle_point_y = None
 
         self.is_settings_opened = None
         self.master_column_number = 2
@@ -87,7 +96,6 @@ class PanResizer(object):
         self.settings_butch_size_mode = None
         self.settings_ask_default_value_btn = None
 
-        self.settings_insta_tails_amount = None
         self.settings_insta_tails_amount = None
         self.settings_insta_tails_drop = None
 
@@ -171,6 +179,8 @@ class PanResizer(object):
 
     def toggle_insta_start_cutting_button(self):
         print(self.insta_start_cutting_btn)
+        print('ииииииииииииии')
+        print(self.insta_is_start_btn_visible)
         if not self.insta_is_start_btn_visible:
             print(self.insta_parts_amount, 'paaaarts')
             insta_start_cutting_btn_text = tk.StringVar()
@@ -180,13 +190,17 @@ class PanResizer(object):
                                                      command=lambda: self.start_insta_cutting(),
                                                      anchor='center')
             insta_start_cutting_btn_text.set("Start cutting")
-            self.insta_start_cutting_btn.grid(column=2, row=8, sticky='w')
+            self.insta_start_cutting_btn.grid(column=1, row=11, sticky='w')
             self.insta_is_start_btn_visible = True
             # self.insta_start_cutting_btn.after(3000, self.insta_start_cutting_btn.destroy)
         else:
+            print('Knopku doljno bit vidno')
             if self.insta_start_cutting_btn:
-                self.insta_start_cutting_btn.grid_remove()
+                print('Knopka prisutsvuet')
+                # self.insta_start_cutting_btn.grid_remove()
                 self.insta_is_start_btn_visible = True
+            else:
+                self.insta_is_start_btn_visible = False
 
     def add_info_box(self):
         self.info_box = tk.Text(self.root, height=20, width=65, padx=20, font=("Raleway", 10))
@@ -328,74 +342,204 @@ class PanResizer(object):
 
     def calculate_insta_data(self):
 
+
         if self.initial_img:
-            if not self.initial_width or not self.initial_height:
-                self.calculate_initial_data()
-
             if not self.settings_insta_tails_amount:
-                self.insta_parts_amount = int(self.initial_width / self.initial_height)
+                self.insta_parts_amount = INSTA_CUT_DEFAULT_TAILS_VARIANTS[0]
             else:
-                self.insta_parts_amount = self.settings_insta_tails_amount
-            if self.insta_parts_amount < 3:
-                self.update_info_box('The weidth of image is not lareger than 3 x heighgt.\n'
-                                     'Aborting.')
+                self.insta_parts_amount = self.settings_insta_tails_amount.get()
+            # print(dir(self))
+            # print(self.insta_parts_amount)
+            # print(dir(self.preview_canvas))
+            # print(self.preview_canvas.winfo_children())
 
-                return
-            else:
-                self.update_info_box('The image could be cutted into %s square parts.'
-                                     % self.insta_parts_amount)
-                self.add_responsive_frame()
+            if self.rect:
+                self.preview_canvas.delete(self.rect)
+            if self.touch_center:
+                self.preview_canvas.delete(self.touch_center)
+            if self.move_corner:
+                self.preview_canvas.delete(self.move_corner)
+            if self.insta_ver_seps:
+                for sep in self.insta_ver_seps:
+                    self.preview_canvas.delete(sep)
+
+            self.add_responsive_frame()
+
+
+
+            # if not self.initial_width or not self.initial_height:
+            #     self.calculate_initial_data()
+            #
+            # if not self.settings_insta_tails_amount:
+            #     self.insta_parts_amount = int(self.initial_width / self.initial_height)
+            # else:
+            #     self.insta_parts_amount = self.settings_insta_tails_amount
+            # if self.insta_parts_amount < 3:
+            #     self.update_info_box('The weidth of image is not lareger than 3 x heighgt.\n'
+            #                          'Aborting.')
+            #
+            #     return
+            # else:
+            #     self.update_info_box('The image could be cutted into %s square parts.'
+            #                          % self.insta_parts_amount)
+            #     self.add_responsive_frame()
 
     def add_responsive_frame(self):
 
+        def move_vert_seps():
+            # move vert separs
+            self.teil_heigh = self.rect_cords[3] - self.rect_cords[1]
+            print('UUU')
+            print(len(self.insta_ver_seps))
+            for s in range(1, len(self.insta_ver_seps) + 1):
+                print(self.rect_cords[0] + (self.rect_cords[-1] * s))
+                self.preview_canvas.coords(
+                    self.insta_ver_seps[s - 1],
+                    self.rect_cords[0] + (self.teil_heigh * s),
+                    self.rect_cords[1],
+                    self.rect_cords[0] + (self.teil_heigh * s),
+                    self.rect_cords[3],
+                )
+
+        def move_rect(x1, y1, x2, y2):
+            # move rect
+            self.preview_canvas.coords(self.rect, x1, y1, x2, y2)
+
+        def move_central_point(event):
+            # move central pint
+            self.preview_canvas.coords(self.touch_center,
+                                       event.x - 5,
+                                       event.y - 5,
+                                       event.x + 5,
+                                       event.y + 5)
+
+        def move_resize_point():
+            # move resize point
+            self.preview_canvas.coords(self.move_corner,
+                                       self.rect_cords[2] - 3,
+                                       self.rect_cords[3] - 3,
+                                       self.rect_cords[2] + 3,
+                                       self.rect_cords[3] + 3)
+
         def on_move(event):
-            x1, y1, x2, y2 = (round(event.x - rect_middle_point_x),
-                              round(event.y - rect_middle_point_y),
-                              round(event.x + rect_middle_point_x),
-                              round(event.y + rect_middle_point_y))
 
-            print('Rect coords: %s' % str(self.preview_canvas.coords(self.rect)))
+            self.rect_cords = self.preview_canvas.coords(self.rect)
 
-            if x1 >= -0.0 and x2 < self.preview_img.size[0]+1:
+            self.teil_heigh = self.rect_cords[3] - self.rect_cords[1]
+            print('teil_heigh: %s' % self.teil_heigh)
 
-                # draw rect
-                self.preview_canvas.coords(self.rect, x1, 0, x2-1, self.img_prevew_size[1])
+            half_rect_length = (self.rect_cords[2] - self.rect_cords[0]) / 2
+            half_rect_height = (self.rect_cords[3] - self.rect_cords[1]) / 2
+            # rect_middle_point_y = self.rect_cords[3] / 2
 
-                # draw central pint
-                self.preview_canvas.coords(self.touch_center,
-                                           event.x-5,
-                                           self.img_prevew_size[1]/2 - 5,
-                                           event.x+5,
-                                           self.img_prevew_size[1]/2 + 5)
-                print(self.preview_canvas.coords(self.rect))
+            # if not self.resized_rect_cords:
+            # self.resized_rect_cords = self.preview_canvas.coords(self.rect)
 
-                # move vert separs
-                print(len(self.insta_ver_seps))
-                for s in range(1, len(self.insta_ver_seps)+1):
-                    self.preview_canvas.coords(
-                        self.insta_ver_seps[s-1],
-                        self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * s),
-                        self.preview_canvas.coords(self.rect)[1],
-                        self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * s),
-                        self.preview_canvas.coords(self.rect)[3],
-                    )
+            print('rect_middle_point_x: %s ' % rect_middle_point_x)
 
+            x1, y1, x2, y2 = (int(event.x - half_rect_length),
+                              int(event.y - half_rect_height),
+                              int(event.x + half_rect_length),
+                              int(event.y + half_rect_height))
+
+            print('Rect coords on move: %s' % str(self.preview_canvas.coords(self.rect)))
+            print('Central point on move: %s\n' % str(self.preview_canvas.coords(self.touch_center)))
+            # print('rect_middle_point_x: %s' % rect_middle_point_x)
+
+            if x1 >= -0.0 and x2 < self.preview_img.size[0]+1 and \
+                y1 >= 0.0 and y2 < self.preview_img.size[1]+1:
+
+                move_rect(x1, y1, x2, y2)
+                move_central_point(event)
+                move_vert_seps()
+                move_resize_point()
+
+                self.rect_cords = self.preview_canvas.coords(self.rect)
+                self.get_insta_frame_position()
+
+
+        def on_resize(event):
+
+            x1, y1, x2, y2 = (self.preview_canvas.coords(self.rect)[0],
+                              self.preview_canvas.coords(self.rect)[1],
+                              round(event.x),
+                              round(event.y))
+
+            print('Rect coords on resize: %s' % str(self.preview_canvas.coords(self.rect)))
+            print('Central point on resize: %s' % str(self.preview_canvas.coords(self.touch_center)))
+            print('min_preview_y: %s' % min_preview_y)
+
+            self.rect_cords = self.preview_canvas.coords(self.rect)
+
+            self.teil_heigh = self.rect_cords[3] - self.rect_cords[1]
+
+            if x1 >= 0 and y1 >= 0 and \
+                x2 > (min_preview_y * self.insta_parts_amount) and \
+                    y2 >= min_preview_y:
+
+                # move corner
+                self.preview_canvas.coords(self.move_corner,
+                                           x1+self.teil_heigh*self.insta_parts_amount-3,
+                                           y2-3,
+                                           x1+self.teil_heigh*self.insta_parts_amount+3,
+                                           y2+3)
+                move_rect(x1, y1,
+                          x1+self.teil_heigh*self.insta_parts_amount, y2-1)
+                move_vert_seps()
+                move_resize_point()
+
+                # move touch center
+                self.preview_canvas.coords(
+                    self.touch_center,
+                    (self.rect_cords[2] + self.rect_cords[0]) / 2 - 5,
+                    (self.rect_cords[3] + self.rect_cords[1]) / 2 - 5,
+                    (self.rect_cords[2] + self.rect_cords[0]) / 2 + 5,
+                    (self.rect_cords[3] + self.rect_cords[1]) / 2 + 5)
+
+                self.rect_cords = self.preview_canvas.coords(self.rect)
+
+                # self.rect_cords
                 self.get_insta_frame_position()
 
         if not self.initial_img or not self.insta_parts_amount:
             return
         else:
+            pass
+
             print('Preview size: %s' % str(self.img_prevew_size))
-
-            self.crop_factor_x = self.img_prevew_size[0] / self.initial_width
+            print('Parts amount: %s' % str(self.insta_parts_amount))
+        # #
+            # self.crop_factor_x = self.img_prevew_size[0] / self.initial_width
             self.crop_factor_y = self.img_prevew_size[1] / self.initial_height
+            # print(self.crop_factor_x)
+            print('Crop factor: %s' % self.crop_factor_y)
 
-            rec_x = self.img_prevew_size[1] * self.insta_parts_amount
-            rec_y = self.img_prevew_size[1]
-            print('Rec: ', rec_x, rec_y)
+            preview_min_y_size = INSTA_CUT_MINIMUM_TAIL_SIZE_PX * self.crop_factor_y
+            print(preview_min_y_size)
+
+            # minimal frame
+            # min_preview_x = preview_min_y_size * self.insta_parts_amount * self.crop_factor_y
+            min_preview_y = int(preview_min_y_size * self.crop_factor_y) + 1
+            # print('Rec: ', rec_x, rec_y)
+            # print('Rec: ', min_preview_x, min_preview_y)
+        #
+            # maximize
+            max_y_amount = int(self.img_prevew_size[1] / min_preview_y)
+            print('max_y_amount: %s' % max_y_amount)
+            maximized_y = min_preview_y * max_y_amount
+            maximized_x = maximized_y * self.insta_parts_amount
+            print('maximized x _px: %s' % (maximized_x / self.crop_factor_y))
+
+            if maximized_x > self.img_prevew_size[0]:
+                temp_crop_f = self.img_prevew_size[0] / maximized_x
+                maximized_y = maximized_y * temp_crop_f
+                maximized_x = maximized_y * self.insta_parts_amount - (temp_crop_f * self.insta_parts_amount)
+                # new_max_x_ = int(self.img_prevew_size[0] / self.insta_parts_amount)
+                # maximized_y = new_max_x / self.insta_parts_amount
+                # maximized_x = maximized_y * self.insta_parts_amount
 
             self.rect = self.preview_canvas.create_rectangle(0, 0,
-                                                             rec_x, rec_y,
+                                                             maximized_x, maximized_y,
                                                              outline='red',
                                                              width=1)
             rect_cords = self.preview_canvas.coords(self.rect)
@@ -404,12 +548,20 @@ class PanResizer(object):
             rect_middle_point_x = rect_cords[2] / 2
             rect_middle_point_y = rect_cords[3] / 2
 
+            # add move point
             self.touch_center = self.preview_canvas.create_oval(rect_middle_point_x-5,
                                                                 rect_middle_point_y-5,
                                                                 rect_middle_point_x+5,
                                                                 rect_middle_point_y+5,
                                                                 outline='magenta',
                                                                 width=1)
+            # add resize point
+            self.move_corner = self.preview_canvas.create_oval(rect_cords[2]-3,
+                                                               rect_cords[3]-3,
+                                                               rect_cords[2]+3,
+                                                               rect_cords[3]+3,
+                                                               outline='yellow',
+                                                               width=1)
             # add separators
             self.insta_ver_seps = []
             if self.insta_parts_amount:
@@ -430,26 +582,162 @@ class PanResizer(object):
                     # print((self.preview_canvas.coords(self.insta_ver_seps[i])))
                     # except Exception as e:
                     #     print(e)
-            self.preview_canvas.bind('<B1-Motion>', on_move)
+            self.preview_canvas.bind('<B3-Motion>', on_move)
+            self.preview_canvas.bind('<B1-Motion>', on_resize)
 
             self.preview_canvas.grid()
 
     def get_insta_frame_position(self):
+        print('AAW')
         if self.rect:
+            print('AAWццц')
             self.insta_start_cut_preview_position_x = self.preview_canvas.coords(self.rect)[0]
+            self.insta_start_cut_preview_position_y = self.preview_canvas.coords(self.rect)[1]
             if self.insta_parts_amount:
+                print('AAWцвввввцц')
                 self.toggle_insta_start_cutting_button()
 
+
+
+    # def calculate_insta_data(self):
+    #
+    #     if self.initial_img:
+    #         if not self.initial_width or not self.initial_height:
+    #             self.calculate_initial_data()
+    #
+    #         if not self.settings_insta_tails_amount:
+    #             self.insta_parts_amount = int(self.initial_width / self.initial_height)
+    #         else:
+    #             self.insta_parts_amount = self.settings_insta_tails_amount
+    #         if self.insta_parts_amount < 3:
+    #             self.update_info_box('The weidth of image is not lareger than 3 x heighgt.\n'
+    #                                  'Aborting.')
+    #
+    #             return
+    #         else:
+    #             self.update_info_box('The image could be cutted into %s square parts.'
+    #                                  % self.insta_parts_amount)
+    #             self.add_responsive_frame()
+    #
+    # def add_responsive_frame(self):
+    #
+    #     def on_move(event):
+    #         x1, y1, x2, y2 = (round(event.x - rect_middle_point_x),
+    #                           round(event.y - rect_middle_point_y),
+    #                           round(event.x + rect_middle_point_x),
+    #                           round(event.y + rect_middle_point_y))
+    #
+    #         print('Rect coords: %s' % str(self.preview_canvas.coords(self.rect)))
+    #
+    #         if x1 >= -0.0 and x2 < self.preview_img.size[0]+1:
+    #
+    #             # draw rect
+    #             self.preview_canvas.coords(self.rect, x1, 0, x2-1, self.img_prevew_size[1])
+    #
+    #             # draw central pint
+    #             self.preview_canvas.coords(self.touch_center,
+    #                                        event.x-5,
+    #                                        self.img_prevew_size[1]/2 - 5,
+    #                                        event.x+5,
+    #                                        self.img_prevew_size[1]/2 + 5)
+    #             print(self.preview_canvas.coords(self.rect))
+    #
+    #             # move vert separs
+    #             print(len(self.insta_ver_seps))
+    #             for s in range(1, len(self.insta_ver_seps)+1):
+    #                 self.preview_canvas.coords(
+    #                     self.insta_ver_seps[s-1],
+    #                     self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * s),
+    #                     self.preview_canvas.coords(self.rect)[1],
+    #                     self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * s),
+    #                     self.preview_canvas.coords(self.rect)[3],
+    #                 )
+    #
+    #             self.get_insta_frame_position()
+    #
+    #     if not self.initial_img or not self.insta_parts_amount:
+    #         return
+    #     else:
+    #         print('Preview size: %s' % str(self.img_prevew_size))
+    #
+    #         self.crop_factor_x = self.img_prevew_size[0] / self.initial_width
+    #         self.crop_factor_y = self.img_prevew_size[1] / self.initial_height
+    #
+    #         rec_x = self.img_prevew_size[1] * self.insta_parts_amount
+    #         rec_y = self.img_prevew_size[1]
+    #         print('Rec: ', rec_x, rec_y)
+    #
+    #         self.rect = self.preview_canvas.create_rectangle(0, 0,
+    #                                                          rec_x, rec_y,
+    #                                                          outline='red',
+    #                                                          width=1)
+    #         rect_cords = self.preview_canvas.coords(self.rect)
+    #         print('Rect coords: %s' % rect_cords)
+    #
+    #         rect_middle_point_x = rect_cords[2] / 2
+    #         rect_middle_point_y = rect_cords[3] / 2
+    #
+    #         self.touch_center = self.preview_canvas.create_oval(rect_middle_point_x-5,
+    #                                                             rect_middle_point_y-5,
+    #                                                             rect_middle_point_x+5,
+    #                                                             rect_middle_point_y+5,
+    #                                                             outline='magenta',
+    #                                                             width=1)
+    #         # add separators
+    #         self.insta_ver_seps = []
+    #         if self.insta_parts_amount:
+    #             for i in range(1, self.insta_parts_amount):
+    #                 print(self.insta_parts_amount, ' parts')
+    #                 print(self.preview_canvas.coords(self.rect)[2])
+    #                 print(i, self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i))
+    #                 self.insta_ver_seps.append(self.preview_canvas.create_line(
+    #                     self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i),
+    #                     self.preview_canvas.coords(self.rect)[1],
+    #                     self.preview_canvas.coords(self.rect)[0] + (rect_cords[-1] * i),
+    #                     self.preview_canvas.coords(self.rect)[3],
+    #                     fill='red',
+    #                     dash=(2, 2)
+    #                 ))
+    #                 print(self.insta_ver_seps)
+    #                 # try:
+    #                 # print((self.preview_canvas.coords(self.insta_ver_seps[i])))
+    #                 # except Exception as e:
+    #                 #     print(e)
+    #         self.preview_canvas.bind('<B1-Motion>', on_move)
+    #
+    #         self.preview_canvas.grid()
+    #
+    # def get_insta_frame_position(self):
+    #     if self.rect:
+    #         self.insta_start_cut_preview_position_x = self.preview_canvas.coords(self.rect)[0]
+    #         if self.insta_parts_amount:
+    #             self.toggle_insta_start_cutting_button()
+
     def start_insta_cutting(self):
-        if self.insta_start_cut_preview_position_x < 1:
+        print('Hello from start cutting')
+        print(self.insta_start_cut_preview_position_x)
+        print(self.teil_heigh)
+        print(self.crop_factor_y)
+
+        tail_height_orig = int(self.teil_heigh / self.crop_factor_y)
+        print(tail_height_orig, '<--- tail pixels h')
+
+        if not self.insta_start_cut_preview_position_x or not self.insta_start_cut_preview_position_y:
+            self.update_info_box('Can not start cutting cuose — lack of initial position')
+
+        if self.insta_start_cut_preview_position_x <= 1:
             self.insta_start_cut_original_position_x = 0
+        if self.insta_start_cut_preview_position_y <= 1:
+            self.insta_start_cut_original_position_y = 0
         # else:
-        if self.crop_factor_x:
-            print(self.insta_start_cut_preview_position_x, ' insta cut position x')
-            print(self.crop_factor_x, ' crop factor x')
-            print(int(self.insta_start_cut_preview_position_x / self.crop_factor_x), ' original start pixel x')
+        if self.crop_factor_y:
+            # print(self.insta_start_cut_preview_position_x, ' insta cut position x')
+            # print(self.crop_factor_x, ' crop factor x')
+            # print(int(self.insta_start_cut_preview_position_x / self.crop_factor_x), ' original start pixel x')
             self.insta_start_cut_original_position_x = int(
-                self.insta_start_cut_preview_position_x / self.crop_factor_x)
+                self.insta_start_cut_preview_position_x / self.crop_factor_y)
+            self.insta_start_cut_original_position_y = int(
+                self.insta_start_cut_preview_position_y / self.crop_factor_y)
         else:
             return
 
@@ -458,19 +746,24 @@ class PanResizer(object):
 
             for i in range(0, self.insta_parts_amount):
                 print('Processing tail # %d' % i)
-
                 print('Tail %d: \nX: %s\n' % (i, self.insta_start_cut_original_position_x +
-                                            i * self.initial_height))
+                                              i * tail_height_orig))
                 print('Tail %d: \nX+: %s\n\n' % (
                     i, self.insta_start_cut_original_position_x +
-                    i * self.initial_height + self.initial_height))
+                    i * tail_height_orig + self.initial_height)
+                      )
+                print('Tail %d: \nY: %s\n' % (i, self.insta_start_cut_original_position_y +
+                                              i * tail_height_orig))
+                print('Tail %d: \nY+: %s\n\n' % (
+                    i, self.insta_start_cut_original_position_y +
+                    i * tail_height_orig + self.initial_height))
 
+                print(tail_height_orig)
                 tails.append(self.initial_img.crop(
-                    (self.insta_start_cut_original_position_x + i * self.initial_height,
-                     0,
-                     self.insta_start_cut_original_position_x +
-                     i * self.initial_height + self.initial_height,
-                     self.initial_height)
+                    (self.insta_start_cut_original_position_x + i * tail_height_orig,
+                     self.insta_start_cut_original_position_y,
+                     self.insta_start_cut_original_position_x + i * tail_height_orig + tail_height_orig,
+                     self.insta_start_cut_original_position_y + tail_height_orig)
                 ))
 
         for i in range(len(tails)):
@@ -623,7 +916,8 @@ class PanResizer(object):
                 initialfile=self.initial_file.name.replace(
                     '.jpg', '_resized_to_%s_Mb.jpg' % str(self.filesize/1048576).replace('.', ',')[:4]))
             if file:
-                self.candidate_img.save(file, quality=100, subsampling=0, icc_profile=self.icc_profile)
+                self.candidate_img.save(file, quality=100, subsampling=0, icc_profile=self.icc_profile,
+                                        )
                 self.update_info_box('File saved:\n%s\n' % file.name)
                 if self.bulk_mode:
                     self.add_next_button()
@@ -725,15 +1019,15 @@ class PanResizer(object):
 
         def set_butch_size_set_default():
             self.settings_butch_size_mode.set('default')
-            print(self.settings_butch_size_mode.get())
+            # print(self.settings_butch_size_mode.get())
             butch_size_radio_set_def.setvar('value', 1)
             butch_size_radio_ask_each.setvar('value', 0)
             add_ask_size_button()
             add_default_size_mb_lable()
 
         def add_default_size_mb_lable():
-            print('def lable')
-            print(self.butch_size_default)
+            # print('def lable')
+            # print(self.butch_size_default)
             if self.butch_size_default and self.settings_butch_size_mode.get() == 'default':
                 self.settings_def_size_lbl = tk.Label(self.settings_frame,
                                         text='Now: %s' % self.butch_size_default,
@@ -786,25 +1080,31 @@ class PanResizer(object):
             self.settings_insta_tails_amount = tk.IntVar()
             self.settings_insta_tails_amount.set(INSTA_CUT_DEFAULT_TAILS_AMOUNT)
 
-            max_tails_amount = int(self.initial_height / INSTA_CUT_MINIMUM_TAIL_SIZE_PX)
-            print('Min tails amount: %s' % max_tails_amount)
+            max_tails_amount_x = int(self.initial_width / INSTA_CUT_MINIMUM_TAIL_SIZE_PX)
+            print('Max tails amount in row: %s' % max_tails_amount_x)
 
-            tails_list = INSTA_CUT_DEFAULT_TAILS_VARIANTS[:max_tails_amount-2]
+            tails_list = [x for x in range(3, max_tails_amount_x+1)]
+
+
+            # tails_list = INSTA_CUT_DEFAULT_TAILS_VARIANTS[:max_tails_amount_x]
 
             self.settings_insta_tails_drop = Combobox(self.settings_frame,
                                                       values=tails_list,
                                                       width=3,
-                                                      postcommand=lambda: print(self.settings_insta_tails_amount.set(
-                                                          self.settings_insta_tails_drop.get()))
+                                                      # postcommand=lambda: print(self.settings_insta_tails_amount.set(
+                                                      #     self.settings_insta_tails_drop.get()))
+                                                      # postcommand=self.calculate_insta_data,
                                                       )
             self.settings_insta_tails_drop.grid(column=self.master_column_number,
                                                 row=8, sticky='nw')
+            # if self.settings_insta_tails_drop.get():
             self.settings_insta_tails_drop.current(0)
             print(self.settings_insta_tails_amount.get())
             print(self.initial_width)
 
             def set_dropbox_amount(event):
                 self.settings_insta_tails_amount.set(self.settings_insta_tails_drop.get())
+                self.calculate_insta_data()
                 print(self.settings_insta_tails_drop.get())
 
             self.settings_insta_tails_drop.bind(
