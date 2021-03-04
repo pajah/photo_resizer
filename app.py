@@ -467,6 +467,7 @@ class PanResizer(object):
 
             print('Rect coords on resize: %s' % str(self.preview_canvas.coords(self.rect)))
             print('Central point on resize: %s' % str(self.preview_canvas.coords(self.touch_center)))
+            print('Corner on resize: %s' % str(self.preview_canvas.coords(self.move_corner)))
             print('min_preview_y: %s' % min_preview_y)
 
             self.rect_cords = self.preview_canvas.coords(self.rect)
@@ -475,18 +476,12 @@ class PanResizer(object):
 
             if x1 >= 0 and y1 >= 0 and \
                 x2 > (min_preview_y * self.insta_parts_amount) and \
-                    y2 >= min_preview_y:
+                    x2 < self.preview_img.size[0] and \
+                        y2 >= preview_min_y_size and y2 <= self.preview_img.size[1]:
 
-                # move corner
-                self.preview_canvas.coords(self.move_corner,
-                                           x1+self.teil_heigh*self.insta_parts_amount-3,
-                                           y2-3,
-                                           x1+self.teil_heigh*self.insta_parts_amount+3,
-                                           y2+3)
-                move_rect(x1, y1,
-                          x1+self.teil_heigh*self.insta_parts_amount, y2-1)
+
+                move_rect(x1, y1, x1+self.teil_heigh*self.insta_parts_amount, y2)
                 move_vert_seps()
-                move_resize_point()
 
                 # move touch center
                 self.preview_canvas.coords(
@@ -500,6 +495,7 @@ class PanResizer(object):
 
                 # self.rect_cords
                 self.get_insta_frame_position()
+                move_resize_point()
 
         if not self.initial_img or not self.insta_parts_amount:
             return
