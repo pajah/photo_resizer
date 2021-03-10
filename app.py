@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from time import sleep
 
-from tkinter.simpledialog import askfloat
+from tkinter.simpledialog import askfloat, askinteger
 
 from tkinter.ttk import Separator, Combobox
 from PIL import Image, ImageTk
@@ -62,6 +62,7 @@ class PanResizer(object):
         self.bulk_files = None
 
         self.butch_size_default = INITIAL_FILE_SIZE_MB
+        self.insta_exact_pixels = None
 
         self.crop_factor_x = None
         self.crop_factor_y = None
@@ -477,12 +478,14 @@ class PanResizer(object):
             if x1 >= 0 and y1 >= 0 and \
                 x2 > (min_preview_y * self.insta_parts_amount) and \
                     x2 < self.preview_img.size[0] and \
-                        y2 >= preview_min_y_size and y2 <= self.preview_img.size[1]:
+                        y2 >= preview_min_y_size and y2 <= self.preview_img.size[1] and \
+                            self.rect_cords[2] < self.preview_img.size[0]:
 
 
                 move_rect(x1, y1, x1+self.teil_heigh*self.insta_parts_amount, y2)
                 move_vert_seps()
 
+                self.rect_cords = self.preview_canvas.coords(self.rect)
                 # move touch center
                 self.preview_canvas.coords(
                     self.touch_center,
@@ -974,8 +977,42 @@ class PanResizer(object):
 
         # for row in range(self.master_row_nubmer):
         #     self.settings_frame.rowconfigure(row, minsize=13)
+        self.add_setting_set_exact_pixels_size()
         self.add_setting_butch_keep_size_radio()
         self.add_setting_insta_cut_tails_amount()
+
+    def add_setting_set_exact_pixels_size(self):
+
+        def ask_exact_pixels_size():
+            needed_pixels_amount = askinteger(
+                "Set desirable squerq size in pixels",
+                "Input: ",
+                parent=self.settings_frame,
+                initialvalue="1080")
+            if not needed_pixels_amount:
+                return
+            else:
+                self.insta_exact_pixels = needed_pixels_amount
+                # add_default_size_mb_lable()
+
+        # self.settings_butch_size_radio_var = tk.IntVar()
+        # self.settings_butch_size_radio_var.set(1)  # set default as default
+        #
+        # self.settings_butch_size_mode = tk.StringVar(None, 'default')
+
+        self.settings_ask_exact_pixels_button = tk.Button(self.settings_frame,
+                                                          text='Set pixels',
+                                                          command=lambda: ask_exact_pixels_size(),
+                                                          font=("Raleway", 10),
+                                                          height=1
+                                                          )
+        if self.initial_img and self.insta_parts_amount:
+            self.settings_ask_exact_pixels_button.grid(column=self.master_column_number-1,
+                                                       row=8,
+                                                       sticky='s',
+                                                       pady=5
+                                                       )
+
 
     def add_setting_butch_keep_size_radio(self):
 
