@@ -89,7 +89,7 @@ class PanResizer(object):
         self.rect_middle_point_y = None
 
         self.is_settings_opened = None
-        self.master_column_number = 2
+        self.master_column_number = 3
         self.master_row_nubmer = 12
 
         self.settings_frame = None
@@ -97,6 +97,7 @@ class PanResizer(object):
         self.settings_butch_size_radio_var = None
         self.settings_butch_size_mode = None
         self.settings_ask_default_value_btn = None
+        self.settings_ask_exact_pixels_button = None
 
         self.settings_insta_tails_amount = None
         self.settings_insta_tails_drop = None
@@ -189,7 +190,7 @@ class PanResizer(object):
                                                      command=lambda: self.start_insta_cutting(),
                                                      anchor='center')
             insta_start_cutting_btn_text.set("Start cutting")
-            self.insta_start_cutting_btn.grid(column=1, row=11, sticky='w')
+            self.insta_start_cutting_btn.grid(column=1, row=11, sticky='nw', ipady=15)
             self.insta_is_start_btn_visible = True
             # self.insta_start_cutting_btn.after(3000, self.insta_start_cutting_btn.destroy)
         else:
@@ -355,6 +356,21 @@ class PanResizer(object):
                 for sep in self.insta_ver_seps:
                     self.preview_canvas.delete(sep)
 
+            if self.settings_ask_exact_pixels_button and self.settings_resizable_frame_button:
+                if self.insta_exact_pixels:
+                    try:
+                        self.settings_ask_exact_pixels_button['state'] = 'disabled'
+                        self.settings_resizable_frame_button['state'] = 'normal'
+                    except Exception as e:
+                        print('e!: %s' % e)
+                else:
+                    try:
+                        self.settings_ask_exact_pixels_button['state'] = 'normal'
+                        self.settings_resizable_frame_button['state'] = 'disabled'
+                    except Exception as e:
+                        print('e!: %s' % e)
+
+
             self.add_responsive_frame()
 
 
@@ -478,6 +494,8 @@ class PanResizer(object):
                 self.get_insta_frame_position()
                 move_resize_point()
 
+
+
         if not self.initial_img or not self.insta_parts_amount:
             return
         else:
@@ -504,6 +522,9 @@ class PanResizer(object):
                 print('Pixels * crop: %s ' % (self.insta_exact_pixels * self.crop_factor_y))
                 maximized_y = self.insta_exact_pixels * self.crop_factor_y
                 maximized_x = self.insta_exact_pixels * self.insta_parts_amount * self.crop_factor_y
+                if maximized_y > self.img_prevew_size[1] or maximized_x > self.img_prevew_size[0]:
+                    print('Too large!')
+                    return
                 self.rect_color = 'yellow'
             else:
                 # maximize
@@ -535,13 +556,14 @@ class PanResizer(object):
                                                                 rect_middle_point_y+5,
                                                                 outline='magenta',
                                                                 width=1)
-            # add resize point
-            self.move_corner = self.preview_canvas.create_oval(rect_cords[2]-3,
-                                                               rect_cords[3]-3,
-                                                               rect_cords[2]+3,
-                                                               rect_cords[3]+3,
-                                                               outline='yellow',
-                                                               width=1)
+            if not self.insta_exact_pixels:
+                # add resize point
+                self.move_corner = self.preview_canvas.create_oval(rect_cords[2]-3,
+                                                                   rect_cords[3]-3,
+                                                                   rect_cords[2]+3,
+                                                                   rect_cords[3]+3,
+                                                                   outline='yellow',
+                                                                   width=1)
             # add separators
             self.insta_ver_seps = []
             if self.insta_parts_amount:
@@ -563,8 +585,16 @@ class PanResizer(object):
                     # print((self.preview_canvas.coords(self.insta_ver_seps[i])))
                     # except Exception as e:
                     #     print(e)
+
+            def upd_infobox_with_tail_pixels_info(event):
+                self.update_info_box('Current tail pixel size: %s' % str(round(
+                    (self.rect_cords[3] - rect_cords[1]) / self.crop_factor_y)))
+
+
             self.preview_canvas.bind('<B3-Motion>', on_move)
             self.preview_canvas.bind('<B1-Motion>', on_resize)
+            self.preview_canvas.bind('<ButtonRelease-1>', upd_infobox_with_tail_pixels_info)
+
 
             if self.insta_exact_pixels:
                 self.preview_canvas.unbind('<B1-Motion>')
@@ -572,13 +602,15 @@ class PanResizer(object):
 
             self.preview_canvas.grid()
 
+
+
     def get_insta_frame_position(self):
         print('AAW')
         if self.rect:
             print('AAWццц')
             self.insta_start_cut_preview_position_x = self.preview_canvas.coords(self.rect)[0]
             self.insta_start_cut_preview_position_y = self.preview_canvas.coords(self.rect)[1]
-            if self.insta_parts_amount:
+            if self.insta_parts_amount or self.insta_exact_pixels:
                 print('AAWцвввввцц')
                 self.toggle_insta_start_cutting_button()
 
@@ -618,11 +650,12 @@ class PanResizer(object):
 
             for i in range(0, self.insta_parts_amount):
                 print('Processing tail # %d' % i)
-                print('Tail %d: \nX: %s' % (i, self.insta_start_cut_original_position_x +
-                                              i * tail_height_orig))
+                tail_x1 = self.insta_start_cut_original_position_x + i * tail_height_orig
+                print('Tail %d: \nX: %s' % (i, tail_x1))
+                tail_x2 = self.insta_start_cut_original_position_x + i * tail_height_orig + tail_height_orig
                 print('Tail %d: \nX+: %s\n\n' % (
-                    i, self.insta_start_cut_original_position_x +
-                    i * tail_height_orig + self.initial_height)
+                    # i, self.insta_start_cut_original_position_x + i * tail_height_orig + self.initial_height)
+                    i, tail_x2)
                       )
                 print('Tail %d: \nY: %s' % (i, self.insta_start_cut_original_position_y +
                                               i * tail_height_orig))
@@ -632,9 +665,9 @@ class PanResizer(object):
 
                 print(tail_height_orig)
                 tails.append(self.initial_img.crop(
-                    (self.insta_start_cut_original_position_x + i * tail_height_orig,
+                    (tail_x1,
                      self.insta_start_cut_original_position_y,
-                     self.insta_start_cut_original_position_x + i * tail_height_orig + tail_height_orig,
+                     tail_x2,
                      self.insta_start_cut_original_position_y + tail_height_orig)
                 ))
 
@@ -665,6 +698,7 @@ class PanResizer(object):
             self.update_info_box('Initial width : %s px' % self.initial_width)
 
             im = Image.open(self.initial_file.name)
+            self.icc_profile = im.info.get('icc_profile')
             size_mb = len(im.fp.read()) / 1048576
             self.initial_file_mb = size_mb
 
@@ -825,10 +859,10 @@ class PanResizer(object):
         if self.is_settings_opened:
             # self.settings_ver_sep.destroy()
             self.settings_frame.destroy()
-            self.master_column_number -= 2
+            self.master_column_number -= 3
             self.is_settings_opened = False
         else:
-            self.master_column_number += 2
+            self.master_column_number += 3
             self.is_settings_opened = True
 
             self.create_settings()
@@ -848,8 +882,14 @@ class PanResizer(object):
         bulk_separ.grid(column=self.master_column_number - 2, row=7, sticky="we",
                         columnspan=3)
 
+        bulk_separ2 = Separator(master=self.settings_frame, orient='horizontal')
+        bulk_separ2.grid(column=self.master_column_number - 2, row=8, sticky="we",
+                        columnspan=3)
+
+
         # for row in range(self.master_row_nubmer):
         #     self.settings_frame.rowconfigure(row, minsize=13)
+        self.add_setting_set_resizable_frame()
         self.add_setting_set_exact_pixels_size()
         self.add_setting_butch_keep_size_radio()
         self.add_setting_insta_cut_tails_amount()
@@ -867,12 +907,7 @@ class PanResizer(object):
             else:
                 self.insta_exact_pixels = needed_pixels_amount
                 self.calculate_insta_data()
-                # add_default_size_mb_lable()
-
-        # self.settings_butch_size_radio_var = tk.IntVar()
-        # self.settings_butch_size_radio_var.set(1)  # set default as default
-        #
-        # self.settings_butch_size_mode = tk.StringVar(None, 'default')
+                self.toggle_insta_start_cutting_button()
 
         self.settings_ask_exact_pixels_button = tk.Button(self.settings_frame,
                                                           text='Set pixels',
@@ -880,12 +915,49 @@ class PanResizer(object):
                                                           font=("Raleway", 10),
                                                           height=1
                                                           )
+        if self.insta_exact_pixels:
+            try:
+                self.settings_ask_exact_pixels_button['state'] = 'disabled'
+            except Exception as e:
+                print('e!: %s' % e)
+
         if self.initial_img and self.insta_parts_amount:
             self.settings_ask_exact_pixels_button.grid(column=self.master_column_number-1,
-                                                       row=8,
+                                                       row=9,
                                                        sticky='s',
                                                        pady=5
                                                        )
+
+    def add_setting_set_resizable_frame(self):
+
+        def set_resizable_frame():
+            self.insta_exact_pixels = None
+            self.calculate_insta_data()
+            self.toggle_insta_start_cutting_button()
+
+
+        self.settings_resizable_frame_button = tk.Button(self.settings_frame,
+                                                          text='Resize',
+                                                          command=lambda: set_resizable_frame(),
+                                                          font=("Raleway", 10),
+                                                          height=1
+                                                          )
+
+        if not self.insta_exact_pixels:
+            try:
+                self.settings_resizable_frame_button['state'] = 'disabled'
+            except Exception as e:
+                print('e!: %s' % e)
+
+        if self.initial_img and self.insta_parts_amount:
+            self.settings_resizable_frame_button.grid(column=self.master_column_number-2,
+                                                      row=9,
+                                                      sticky='s',
+                                                      pady=5,
+                                                      padx=5
+                                                      )
+
+
 
 
     def add_setting_butch_keep_size_radio(self):
@@ -926,7 +998,6 @@ class PanResizer(object):
 
         def set_butch_size_set_default():
             self.settings_butch_size_mode.set('default')
-            # print(self.settings_butch_size_mode.get())
             butch_size_radio_set_def.setvar('value', 1)
             butch_size_radio_ask_each.setvar('value', 0)
             add_ask_size_button()
@@ -1003,7 +1074,7 @@ class PanResizer(object):
                                                       # postcommand=self.calculate_insta_data,
                                                       )
             self.settings_insta_tails_drop.grid(column=self.master_column_number,
-                                                row=8, sticky='nw')
+                                                row=9, sticky='nw', pady=5)
             # if self.settings_insta_tails_drop.get():
             self.settings_insta_tails_drop.current(0)
             print(self.settings_insta_tails_amount.get())
@@ -1044,7 +1115,6 @@ class PanResizer(object):
         # self.add_insta_start_cutting_button()
         # self.toggle_insta_start_cutting_button()
 
-        # self.process()
 
         self.add_info_box()
         # self.calculate_initial_data()
